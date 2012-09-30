@@ -23,11 +23,20 @@ classPriorRatio =  classPriors(classes(1))/classPriors(classes(2));
 for featureIter=1:numFeatures
     muNum = gaussianParams(classes(1), featureIter, 1);
     sigmaNum = gaussianParams(classes(1), featureIter, 2);
-    RatioNum = normpdf(dataRow(featureIter), muNum, sigmaNum);
+    if sigmaNum == 0
+        RatioNum = 1;
+    else
+        RatioNum = normpdf(dataRow(featureIter), muNum, sigmaNum);
+    end
+    
     
     muDen = gaussianParams(classes(2), featureIter, 1);
     sigmaDen = gaussianParams(classes(2), featureIter, 2);
-    RatioDen = normpdf(dataRow(featureIter), muDen, sigmaDen);    
+    if sigmaDen == 0
+        RatioDen = 1;
+    else
+        RatioDen = normpdf(dataRow(featureIter), muDen, sigmaDen);    
+    end
     
     ratio = RatioNum/RatioDen;
     

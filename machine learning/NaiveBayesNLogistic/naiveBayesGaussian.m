@@ -12,7 +12,7 @@
 
 %load given data
 %TODO: read from commandline, the data file and then load it
-dataFileName = 'pima.mat';
+dataFileName = 'Ionosphere_updated.mat';
 load(dataFileName);
 
 %get number of runs

@@ -28,6 +28,7 @@ for iter=1:size(classes)
     currClassData = data(ind, :);
     classPriors(iter) = size(currClassData, 1)/size(data, 1);
     for featureIter=1:numFeatures
+        %TODO: how to handle sigma = 0
         [mu, sigma] = normfit(currClassData(:, featureIter));
         gaussianParams(iter, featureIter, 1) = mu;
         gaussianParams(iter, featureIter, 2) = sigma;
