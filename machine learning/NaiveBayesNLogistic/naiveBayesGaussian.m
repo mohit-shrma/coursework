@@ -15,9 +15,68 @@
 dataFileName = 'pima.mat';
 load(dataFileName);
 
+%get number of runs
+%TODO: read from commandline, the data file and then load it
+runs = 100;
+
+%training-set percentage vector
+%TODO: read from commandline, the data file and then load it
+trainPcVec = [5 10 15 20 25];
+
 %get size of dataset
 sizeData = size(data,1);
 
+%get classes
+classes = unique(labels);
 
+%divide into training data and validation data
+trainDataSize = int16(0.8 * sizeData);
 
+%error percent vector across all runs
+errorPcRuns = zeros(runs, size(trainPcVec, 2));
+
+%mean error percent vector across all runs
+meanErr = zeros(size(trainPcVec, 2));
+
+%std dev across all runs
+stdErr = zeros(size(trainPcVec, 2));
+predLabelVecOld = zeros(size(valData, 1), 1);
+predLabelVec = zeros(size(valData, 1), 1);
+for iterRun=1:runs
+    permInd = randperm(sizeData)';
+    
+    trainDataInd = permInd(1:trainDataSize);
+    valDataInd = permInd(trainDataSize+1:sizeData);
+    
+    valData = data(valDataInd, :);
+    valLabels = labels(valDataInd, :); 
+    
+    for iterTrain=1:size(trainPcVec, 2)
+        currTrainDataSize = int16(trainDataSize*((trainPcVec(iterTrain)/100)));
+        
+        trainData = data(trainDataInd(1:currTrainDataSize), :);
+        trainLabels = labels(trainDataInd(1:currTrainDataSize), :); 
+        
+        %train using the training data
+        [gaussianParams, classPriors] = naiveBayesTrain(trainData, ...
+                                                        trainLabels);
+        
+        %start cross-validation
+        errorCount = 0;
+        for validIter=1:size(valData, 1)
+            predLabel = naiveBayesPredict(classes, valData(validIter,:), ...
+                                      gaussianParams, classPriors);
+            predLabelVec(validIter) = predLabel;
+            if predLabel ~= valLabels(validIter)
+                errorCount = errorCount + 1;
+            end
+        end
+        predLabelVecOld = predLabelVec;
+        errorPc = errorCount/size(valData, 1);
+        errorPcRuns(iterRun, iterTrain) = errorPc;
+    end
+end
+
+meanErr = mean(errorPcRuns)
+stdErr = std(errorPcRuns)
 

@@ -7,18 +7,30 @@
    algorithm: apply naive bayes to passed data and return learned parameters
 %}
 
-function [] = naiveBayesTrain(data, labels)
+function [gaussianParams, classPriors] = naiveBayesTrain(data, labels)
+
+%get number of features
+numFeatures = size(data, 2);
 
 %get the class labels in array
 classes = unique(labels);
 
-%get size of dataset
-sizeData = size(data,1);
 
-%get the num of features
-numFeatures = size(data,2);
+%store gaussian parameter for each features
+gaussianParams = zeros(size(classes,1), numFeatures, 2);
 
-%compute individual class covariances, means and prior    
-[classCovariances, classMeans, classSize, classPriors] = classCovarianceNMeans(data, labels, classes);
+%class priors
+classPriors = zeros(size(classes,1), 1);
 
+for iter=1:size(classes)
+    currClassLabel = classes(iter);
+    ind = find(labels == currClassLabel);
+    currClassData = data(ind, :);
+    classPriors(iter) = size(currClassData, 1)/size(data, 1);
+    for featureIter=1:numFeatures
+        [mu, sigma] = normfit(currClassData(:, featureIter));
+        gaussianParams(iter, featureIter, 1) = mu;
+        gaussianParams(iter, featureIter, 2) = sigma;
+    end
+end
 
