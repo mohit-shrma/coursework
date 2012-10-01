@@ -12,7 +12,7 @@
 
 %load given data
 %TODO: read from commandline, the data file and then load it
-dataFileName = 'Ionosphere_updated.mat';
+dataFileName = 'Pima.mat';
 load(dataFileName);
 
 %get number of runs
@@ -21,7 +21,7 @@ runs = 100;
 
 %training-set percentage vector
 %TODO: read from commandline, the data file and then load it
-trainPcVec = [5 10 15 20 25];
+trainPcVec = [5 10 15 20 25 35 40 50 60 75 90];
 
 %get size of dataset
 sizeData = size(data,1);
@@ -40,8 +40,7 @@ meanErr = zeros(size(trainPcVec, 2));
 
 %std dev across all runs
 stdErr = zeros(size(trainPcVec, 2));
-predLabelVecOld = zeros(size(valData, 1), 1);
-predLabelVec = zeros(size(valData, 1), 1);
+
 for iterRun=1:runs
     permInd = randperm(sizeData)';
     
@@ -66,12 +65,10 @@ for iterRun=1:runs
         for validIter=1:size(valData, 1)
             predLabel = naiveBayesPredict(classes, valData(validIter,:), ...
                                       gaussianParams, classPriors);
-            predLabelVec(validIter) = predLabel;
             if predLabel ~= valLabels(validIter)
                 errorCount = errorCount + 1;
             end
         end
-        predLabelVecOld = predLabelVec;
         errorPc = errorCount/size(valData, 1);
         errorPcRuns(iterRun, iterTrain) = errorPc;
     end

@@ -24,7 +24,11 @@ for featureIter=1:numFeatures
     muNum = gaussianParams(classes(1), featureIter, 1);
     sigmaNum = gaussianParams(classes(1), featureIter, 2);
     if sigmaNum == 0
-        RatioNum = 1;
+        if dataRow(featureIter) ~= muNum
+            RatioNum = 0;
+        else
+            RatioNum = 1;
+        end
     else
         RatioNum = normpdf(dataRow(featureIter), muNum, sigmaNum);
     end
@@ -33,7 +37,11 @@ for featureIter=1:numFeatures
     muDen = gaussianParams(classes(2), featureIter, 1);
     sigmaDen = gaussianParams(classes(2), featureIter, 2);
     if sigmaDen == 0
-        RatioDen = 1;
+        if dataRow(featureIter) ~= muNum
+            RatioDen = 0;
+        else
+            RatioDen = 1;
+        end
     else
         RatioDen = normpdf(dataRow(featureIter), muDen, sigmaDen);    
     end
