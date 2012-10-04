@@ -8,18 +8,13 @@
        100 random 80-20 train test split to evaluate
 %}
 
+function [] = logisticRegression(dataFileName, trainPcVec)
+
 %load given data
-%TODO: read from commandline, the data file and then load it
-dataFileName = 'Pima.mat';
 load(dataFileName);
 
 %get number of runs
-%TODO: read from commandline, the data file and then load it
 runs = 100;
-
-%training-set percentage vector
-%TODO: read from commandline, the data file and then load it
-trainPcVec = [5 10 15 20 25 35 40 50 60 75 90];
 
 %get size of dataset
 sizeData = size(data,1);
@@ -75,20 +70,18 @@ for iterRun=1:runs
             [maxVal, maxInd] = max(sigmoidClassesVec);
             predLabel = maxInd;
            
-            predLabelVecNew(validIter) =   predLabel;
-            
             if predLabel ~= valLabels(validIter)
                 errorCount = errorCount + 1;
             end
         end
         
-        predLabelVecOld = predLabelVecNew;
-        
         errorPc = errorCount/size(valData, 1);
         errorPcRuns(iterRun, iterTrain) = errorPc;
     end
 end
-
+fprintf('\nmean error is as follow:\n');
 meanErr = mean(errorPcRuns)
+fprintf('\nstandard dev is as follow:\n');
 stdErr = std(errorPcRuns)
+errorbar(meanErr, stdErr, 'r');
         

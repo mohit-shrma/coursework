@@ -4,7 +4,8 @@
    date: 9/29/2012
    name: Mohit Sharma
    id: 4465482
-   algorithm: learn weights for each class
+   algorithm: learn weights for each class w.r.t to all other classes
+applying IRLS for each weight vector
 %}
 
 function [weights] = oneVsAllTrain(data, labels)

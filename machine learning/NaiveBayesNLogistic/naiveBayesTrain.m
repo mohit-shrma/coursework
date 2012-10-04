@@ -22,16 +22,23 @@ gaussianParams = zeros(size(classes,1), numFeatures, 2);
 %class priors
 classPriors = zeros(size(classes,1), 1);
 
+%class sizes
+classSizes = zeros(size(classes,1), 1);
+
 for iter=1:size(classes)
     currClassLabel = classes(iter);
     ind = find(labels == currClassLabel);
     currClassData = data(ind, :);
     classPriors(iter) = size(currClassData, 1)/size(data, 1);
+    classSizes(iter) = size(currClassData, 1);
     for featureIter=1:numFeatures
-        %TODO: how to handle sigma = 0
         [mu, sigma] = normfit(currClassData(:, featureIter));
         gaussianParams(iter, featureIter, 1) = mu;
         gaussianParams(iter, featureIter, 2) = sigma;
     end
 end
+
+
+
+
 

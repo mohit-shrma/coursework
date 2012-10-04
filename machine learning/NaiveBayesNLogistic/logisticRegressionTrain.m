@@ -5,6 +5,7 @@
    name: Mohit Sharma
    id: 4465482
    algorithm: apply logistic regression and compute weight parameters
+by applying IRLS for weight
 %}
 
 
@@ -24,10 +25,10 @@ data = [ones(size(data, 1), 1) data];
 numFeatures = size(data, 2);
 
 %initialize weight parameters
-weights = ones(numFeatures, 1);
+weights = zeros(numFeatures, 1);
 
 %choose iterations for which to run gradient descent
-numIter = 800;
+numIter = 100;
 
 %learn parameters and cost by applying gradient descent on sigmoid 
 cost = zeros(numIter, 1);
@@ -37,22 +38,14 @@ for iter=1:numIter
     Y = sigmoid(weights'*data')';
     R = diag(Y.*(1-Y));
     phi = data;
-    theInv = pinv(phi'*R*phi);
+    H = phi'*R*phi;
+    theInv = inv(H + 1e-6 *eye(size(H, 1)));
     z = phi*weights-(pinv(R)*(Y-labels));
     weights = theInv*phi'*R*z;
-     
-    %K = alpha/trainDataSize;
-    %K= alpha;
-    %delta = sigmoid((weights'*data'))' - labels;
-    
-    %update wieights
-    %for featureIter=1:numFeatures
-    %    weights(featureIter) = weights(featureIter) - (K * (delta'*data(:, featureIter)));
-    %end
     
     cost(iter) = computeSigmoidCost(data, labels, weights);
     
-    if (iter > 1) && ((cost(iter) - cost(iter-1)) <= 0.0001)
+    if (iter > 5) && ((cost(iter) - cost(iter-1)) <= 0.001)
         break;
     end
     

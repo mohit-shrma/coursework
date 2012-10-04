@@ -10,7 +10,7 @@
 %}
 
 function [projectedMeans, sharedCovariance, classPriors, weightVec] ...
-    = fisherTrain(data, labels, flagWithin)
+    = fisherTrain(data, labels, flagWithIn)
 
 
 
@@ -39,8 +39,8 @@ withinClassCovariance = zeros(numFeatures, numFeatures);
 bwClassCovar = zeros(numFeatures, numFeatures);
 for iter=1:size(classes, 1)
     %compute within class covariances, by summing classCovariances
-    if flagWithIn == 0
-        withinClassCovariance = eye(size(Withinclasscovariance, 1));
+    if flagWithIn == 1
+        withinClassCovariance = eye(size(withinClassCovariance, 1));
     else
         withinClassCovariance = withinClassCovariance + ...
             (reshape(classCovariances(iter,:), numFeatures, ...
@@ -91,7 +91,7 @@ scatter(projectedData(:,1), projectedData(:,2), 5, labels)
 numProjectedFeatures = size(projectedData, 2);
 
 [projectedCovariances, projectedMeans, classSize, classPriors] = ...
-    classCovarianceNMeans(projectedData, labels, classes)
+    classCovarianceNMeans(projectedData, labels, classes);
 
 %compute shared covariance
 sharedCovariance = zeros(numProjectedFeatures, ...

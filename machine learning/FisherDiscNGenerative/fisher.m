@@ -7,23 +7,18 @@
    algorithm: Fisher's linear discriminant
 %}
 
+function [] = fisher(dataFileName, numFolds)
+
 %load given data
-%TODO: read from commandline, the data file and then load it
-dataFileName = 'iris.mat';
 load(dataFileName);
 
 
 
-%as data is skewed randomly shuffle data
+%randomly shuffle data
 randInd = randperm(size(data, 1));
 permData = data(randInd, :);
 permLabels = labels(randInd, :);
 
-
-
-%get number of folds for cross-validation
-%TODO: 
-numFolds = 10;
 
 %get size of dataset
 sizeData = size(permData,1);
@@ -39,12 +34,10 @@ bestLearnedWeightVec = [];
 
 
 %store accuracy of learned parameters for each validation
-validationAccuracy = zeros(numFolds, 1);
+errorPcs = zeros(numFolds, 1);
 
 
 for iter=1:numFolds
-    %computation validation data range
-    fprintf('\n validation number: %d', iter);
     validStart = (iter-1) * leftDataSize + 1;
     validEnd = validStart + leftDataSize - 1;
     if validEnd > sizeData
@@ -65,42 +58,44 @@ for iter=1:numFolds
     end
     
     %learn parameters by training
-    flagWithin = 0;
+    flagWithinI = 0;
     [projectedMeans, sharedCovariance, classPriors, weightVec] = ...
-        fisherTrain(trainingData, trainingLabels, flagWithin);
-    %learnedParams(iter, :) = [projectedMeans sharedCovariance ...
-    %                    classPriors];
-    
+        fisherTrain(trainingData, trainingLabels, flagWithinI);
     
     
     %evaluate parameters on validation data
-    trueLabelCount = 0;
+    errorCount = 0;
     for validIter=1:size(validationData,1)
         projectedDataRow = (weightVec' * validationData(validIter, :)')';
         [posteriorVec, maxLabel] = softMax(projectedDataRow, ...
                                            projectedMeans, ...
                                            sharedCovariance, ...
                                            classPriors);
-        if maxLabel == validationLabels(validIter)
-            trueLabelCount = trueLabelCount + 1;
+        if maxLabel ~= validationLabels(validIter)
+            errorCount = errorCount + 1;
         end
     end
     
-    currAccuracy = trueLabelCount/size(validationData,1);
+    currErrorPc = errorCount/size(validationData,1);
     
-    if currAccuracy >= max(validationAccuracy)
+    if currErrorPc <= max(errorPcs)
         bestLearnedProjMean = projectedMeans;
         bestLearnedSharedCvariance = sharedCovariance;
         bestLearnedClassPriors = classPriors;    
         bestLearnedWeightVec = weightVec;
     end
     
-    validationAccuracy(iter) = trueLabelCount/size(validationData,1);
+    errorPcs(iter) = errorCount/size(validationData,1);
     
 end
+fprintf(dataFileName);
+%errorPcs
+fprintf('\nmean error is as follow:\n');
+mean(errorPcs)
 
-validationAccuracy
-bestLearnedProjMean
-bestLearnedSharedCvariance
-bestLearnedClassPriors
-bestLearnedWeightVec
+fprintf('\nstandard deviation in error is as follow:\n');
+std(errorPcs)
+%bestLearnedProjMean
+%bestLearnedSharedCvariance
+%bestLearnedClassPriors
+%bestLearnedWeightVec
