@@ -9,7 +9,10 @@
        them
 %}
 
-function [projectedMeans, sharedCovariance, classPriors, weightVec] = fisherTrain(data, labels)
+function [projectedMeans, sharedCovariance, classPriors, weightVec] ...
+    = fisherTrain(data, labels, flagWithin)
+
+
 
 %get the class labels in array
 classes = unique(labels);
@@ -26,6 +29,9 @@ meanData = mean(data);
 %compute within class covariances
 withinClassCovariance = zeros(numFeatures, numFeatures);
 
+%within class var flag = I
+%flagWithIn = 0;
+
 %compute individual class covariances, means and prior    
 [classCovariances, classMeans, classSize, classPriors] = classCovarianceNMeans(data, labels, classes);
 
@@ -33,9 +39,14 @@ withinClassCovariance = zeros(numFeatures, numFeatures);
 bwClassCovar = zeros(numFeatures, numFeatures);
 for iter=1:size(classes, 1)
     %compute within class covariances, by summing classCovariances
-    withinClassCovariance = withinClassCovariance + ...
-        (reshape(classCovariances(iter,:), numFeatures, ...
-                 numFeatures)*classSize(iter));
+    if flagWithIn == 0
+        withinClassCovariance = eye(size(Withinclasscovariance, 1));
+    else
+        withinClassCovariance = withinClassCovariance + ...
+            (reshape(classCovariances(iter,:), numFeatures, ...
+                     numFeatures)*classSize(iter));
+    end
+    
     
     %add this class variance from data to between class variance
     classVarianceVec = (classMeans(iter, :) - meanData)';
@@ -54,6 +65,7 @@ end
 numWVec = size(classes, 1) - 1;
 
 
+%TODO: for first part just use bwClassVar
 
 [weightVec, eigenVal] = eigs(inv(withinClassCovariance)*bwClassCovar, numWVec);
 
@@ -64,7 +76,7 @@ for iter=1:sizeData
 end
 
 %DEBUG:plot projected data to see whether separated correctly
-%scatter(projectedData(:,1), projectedData(:,2), 5, labels)
+scatter(projectedData(:,1), projectedData(:,2), 5, labels)
 
 %{
   now we will use maximum-likelihood solution to estimate parameters ...

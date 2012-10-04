@@ -12,19 +12,26 @@
 dataFileName = 'iris.mat';
 load(dataFileName);
 
+
+
+%as data is skewed randomly shuffle data
+randInd = randperm(size(data, 1));
+permData = data(randInd, :);
+permLabels = labels(randInd, :);
+
+
+
 %get number of folds for cross-validation
 %TODO: 
 numFolds = 10;
 
 %get size of dataset
-sizeData = size(data,1);
+sizeData = size(permData,1);
 
 %size of data to be left for validation
 leftDataSize = int16(sizeData/numFolds);
 
 %store learned parameters for each validation
-%TODO:hard coded num of learned parmas, do away with it 
-learnedParams = zeros(numFolds, 3);
 bestLearnedProjMean = [];
 bestLearnedSharedCvariance = [];
 bestLearnedClassPriors = [];
@@ -44,22 +51,23 @@ for iter=1:numFolds
         validEnd = sizeData;
     end
     
-    validationData = data(validStart:validEnd, :);
-    validationLabels = labels(validStart:validEnd, :);
+    validationData = permData(validStart:validEnd, :);
+    validationLabels = permLabels(validStart:validEnd, :);
     
     if validEnd ~= sizeData 
-        trainingData = [data(1:validStart-1, :); data(validEnd+1: ...
+        trainingData = [permData(1:validStart-1, :); permData(validEnd+1: ...
                                                    sizeData, :)];       
-        trainingLabels = [labels(1:validStart-1); labels(validEnd+1: ...
+        trainingLabels = [permLabels(1:validStart-1); permLabels(validEnd+1: ...
                                                    sizeData, :)];
     else
-        trainingData = data(1:validStart-1, :);       
-        trainingLabels = labels(1:validStart-1);       
+        trainingData = permData(1:validStart-1, :);       
+        trainingLabels = permLabels(1:validStart-1);       
     end
     
     %learn parameters by training
+    flagWithin = 1;
     [projectedMeans, sharedCovariance, classPriors, weightVec] = ...
-        fisherTrain(trainingData, trainingLabels);
+        fisherTrain(trainingData, trainingLabels, flagWithin);
     %learnedParams(iter, :) = [projectedMeans sharedCovariance ...
     %                    classPriors];
     
