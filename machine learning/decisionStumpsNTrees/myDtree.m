@@ -48,16 +48,28 @@ for iter=1:numFolds
         trainingLabels = permLabels(1:validStart-1);       
     end
     
-    %learn decision tree of passed depth on current training data
-    %TODO: write learn DTree 
-    learnedTreeRoot = learnDtree(trainingData, trainingLabels);
+
+    %get valid attributes list for data
+    eligibleAttribs = [1:size(data, 2)];
+    
+    %check if it's mushroom dataset then take out feature 11
+    filteredOutAttrib = 11;
+    if dataFileName == 'mushroom'
+        eligibleAttribs = [eligibleAttribs[1:filteredOutAttrib-1] ...
+                           eligibleAttribs[filteredOutAttrib+1:end]];
+    end
+    
+    %learn decision tree of passed depth on current training data    
+    startDepth = 0;
+    learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
+                                 startDepth, depth, eligibleAttribs, ...
+                                 mode(trainingLabels));
     
     %evaluate learned decision tree on validation data
     errorCount = 0;
     for validIter=1:size(validationData,1)
         %get prediction from learn stump
-        %TODO: write predict from tree method
-        label = predictFromTree(validationData(validIter, :), learnedTreeRoot);
+        label = predictFrmDtree(validationData(validIter, :), learnedTreeRoot);
         if label ~= validationLabels(validIter)
             errorCount = errorCount + 1;
         end

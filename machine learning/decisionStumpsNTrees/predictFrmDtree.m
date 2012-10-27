@@ -20,10 +20,13 @@ else
     %search for child node having current attribute value
     for childIter=1:root.numChild
         if root.child(childIter).attribValue == dataTestAttribValue
-            classLabel = predictFrmDtree(dataVec, root.child(childIter));
-    end    
+            classLabel = predictFrmDtree(dataVec, ...
+                                         root.child(childIter));
+        end
+    end        
+end
     
-    end
 if classLabel == -99
-    fprintf('some err')
+    %not able to find class label probably, some error
+    fprintf('class label not found');
 end
