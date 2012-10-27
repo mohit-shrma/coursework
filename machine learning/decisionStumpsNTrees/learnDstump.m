@@ -58,17 +58,3 @@ for attribIter=1:numAttribs
     end
 end
 
-
-%compute conditional entropy based on passed counts, lesser the
-%condn entropy better the split 
-function[condnEntropy] = computeConditionalEntropy(totalSize, ...
-                                                  class1Count, ...
-                                                  class2Count)
-currentNetCount = class1Count + class2Count;
-fractionOfDataConsidered = (class1Count+class2Count)/totalSize
-condnEntropy = fractionOfDataConsidered *((-class1Count* ...
-                                          log2(class1Count/currentNetCount)) ...
-                                          + (-class2Count* ...
-                                          log2(class2Count/currentNetCount)))
-
-
