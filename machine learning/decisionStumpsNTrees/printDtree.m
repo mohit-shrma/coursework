@@ -11,12 +11,12 @@ function [] = printDtree(root)
 
 queue = [root];
 
-while length(queue) > 0
+while ~isempty(queue)
     %pop the node at end of queue
     node = queue(end);
     queue = queue(1:end-1);
     
-    if node.numChild != 0
+    if node.numChild ~= 0
         %print the attribute of current popped node
         fprintf('\n attribute : %d', node.attrib);
         %add child nodes to queue

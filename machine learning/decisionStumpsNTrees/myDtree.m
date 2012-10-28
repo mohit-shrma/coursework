@@ -54,9 +54,9 @@ for iter=1:numFolds
     
     %check if it's mushroom dataset then take out feature 11
     filteredOutAttrib = 11;
-    if dataFileName == 'mushroom'
-        eligibleAttribs = [eligibleAttribs[1:filteredOutAttrib-1] ...
-                           eligibleAttribs[filteredOutAttrib+1:end]];
+    if dataFileName == 'Mushroom.mat'
+        eligibleAttribs = [eligibleAttribs(1:filteredOutAttrib-1) ...
+                           eligibleAttribs(filteredOutAttrib+1:end)];
     end
     
     %learn decision tree of passed depth on current training data    

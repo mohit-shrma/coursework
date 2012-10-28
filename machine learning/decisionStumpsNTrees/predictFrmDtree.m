@@ -9,11 +9,11 @@
 
 function [classLabel] = predictFrmDtree(dataVec, root)
 
-classLabel = -99
+classLabel = -99;
 
 if root.numChild == 0
     %encountered leaf return class label
-    classLabel = root.classLabel
+    classLabel = root.classLabel;
 else
     %check for current node's attribute values
     dataTestAttribValue = dataVec(root.attrib);
