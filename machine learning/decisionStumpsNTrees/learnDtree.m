@@ -54,7 +54,6 @@ else
     for attribIter=1:length(eligibleAttribs)
         currAttrib = eligibleAttribs(attribIter);
         attribValues = unique(data(:, currAttrib));
-        attribValueClass = zeros(length(attribValues), 2);
         %compute conditional entropy and class count corresponding to
         %each attribute
         conditionalEntropy = 0;
@@ -69,15 +68,6 @@ else
             conditionalEntropy = conditionalEntropy + ...
                 computeConditionalEntropy(sizeData, class1Count, ...
                                           class2Count); 
-            %fill the corresponding class in attribute-class matrix
-            attribValueClass(attribValIter, 1) = ...
-                attribValues(attribValIter);
-            %use majority voting to assign class
-            if class1Count > class2Count
-                attribValueClass(attribValIter, 2) = 1;
-            else
-                attribValueClass(attribValIter, 2) = 2;
-            end
         end
         if conditionalEntropy < bestCondnEntropy
             bestAttrib = currAttrib;

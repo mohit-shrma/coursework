@@ -64,7 +64,11 @@ for iter=1:numFolds
     learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
                                  startDepth, depth, eligibleAttribs, ...
                                  mode(trainingLabels));
-    %printDtree(learnedTreeRoot);
+    
+    %print the learned decision tree                         
+    printDtree(learnedTreeRoot);
+    
+    
     %evaluate learned decision tree on validation data
     errorCount = 0;
     for validIter=1:size(validationData,1)
