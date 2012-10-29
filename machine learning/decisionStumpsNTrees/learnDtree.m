@@ -17,8 +17,20 @@ numAttribs = size(data, 2);
 %get the size of data
 sizeData = size(data, 1);
 
+%define all the node properties to default
+%num of child, -> in case of leaf nodes will be 0
+root.numChild = 0;
+%class label assigned to node in case of leaf
+root.classLabel = -99;
 %store the current depth
 root.depth = currDepth;
+%initialize best atribute to current node in caase any found later
+root.attrib = -99;
+%similarly initialize child attribute value as default
+root.childAttribVal = -99;
+%initialize child to default empty
+root.child = struct(root);
+
 
 if sizeData == 0 || currDepth == maxDepth
     %pass node with default label 
@@ -27,7 +39,7 @@ if sizeData == 0 || currDepth == maxDepth
 elseif length(unique(labels)) == 1
     %if all passed data of same label    
     root.numChild = 0;
-    root.classLabel = labels(0);  
+    root.classLabel = labels(1);  
 elseif isempty(eligibleAttribs)
     %if all the eligible attributes is empty or {}, return majority
     %value
@@ -97,14 +109,20 @@ else
                                attribValues(attribValIter));
         filteredData = data(filteredIndices, :);
         filteredLabels = labels(filteredIndices);
-        
+        %weird initialization to make the recursive substructure
+        %assignment works. If don't do this for  then
+        %report structure can not be assigned as they are different
+        if attribValIter == 1
+            root.child.child = struct([]);
+        end
+        %learn subtree for this attribute
         root.child(attribValIter) = learnDtree(filteredData, ...
                                                filteredLabels, ...
                                                currDepth + 1, ...
                                                maxDepth, ...
                                                filteredAttribs, ...
                                                majLabel);
-        root.child(attribValIter).attribValue = attribValues(attribValIter);  
+        root.childAttribVal(attribValIter) = attribValues(attribValIter);  
     end
     
     

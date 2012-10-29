@@ -20,7 +20,7 @@ while ~isempty(queue)
         %print the attribute of current popped node
         fprintf('\n attribute : %d', node.attrib);
         %add child nodes to queue
-        for childIter=1:numChild
+        for childIter=1:node.numChild
             queue = [queue node.child(childIter)];
         end
     else

@@ -64,7 +64,7 @@ for iter=1:numFolds
     learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
                                  startDepth, depth, eligibleAttribs, ...
                                  mode(trainingLabels));
-    
+    %printDtree(learnedTreeRoot);
     %evaluate learned decision tree on validation data
     errorCount = 0;
     for validIter=1:size(validationData,1)
@@ -84,3 +84,11 @@ for iter=1:numFolds
     errorPcs(iter) = errorCount/size(validationData,1);
 
 end
+
+fprintf(dataFileName);
+%errorPcs
+fprintf('\nmean error is as follow:\n');
+mean(errorPcs)
+
+fprintf('\nstandard deviation in error is as follow:\n');
+std(errorPcs)
