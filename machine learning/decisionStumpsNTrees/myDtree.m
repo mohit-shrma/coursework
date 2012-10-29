@@ -26,7 +26,7 @@ leftDataSize = int16(sizeData/numFolds);
 %store accuracy of learned parameters for each validation
 errorPcs = zeros(numFolds, 1);
 
-bestLearnedTree = []
+bestLearnedTree = [];
 
 for iter=1:numFolds
     validStart = (iter-1) * leftDataSize + 1;
@@ -89,6 +89,7 @@ for iter=1:numFolds
 
 end
 
+fprintf('\n');
 fprintf(dataFileName);
 %errorPcs
 fprintf('\nmean error is as follow:\n');
