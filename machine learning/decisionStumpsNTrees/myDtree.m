@@ -26,8 +26,6 @@ leftDataSize = int16(sizeData/numFolds);
 %store accuracy of learned parameters for each validation
 errorPcs = zeros(numFolds, 1);
 
-bestLearnedTree = [];
-
 for iter=1:numFolds
     validStart = (iter-1) * leftDataSize + 1;
     validEnd = validStart + leftDataSize - 1;
@@ -48,52 +46,21 @@ for iter=1:numFolds
         trainingLabels = permLabels(1:validStart-1);       
     end
     
-
-    %get valid attributes list for data
-    eligibleAttribs = [1:size(data, 2)];
+    %learn the decision tree and get the training and test error
+    [trainErr, testErr] = dtree(trainingData, trainingLabels,...
+                                validationData, validationLabels, ...
+                                depth);
     
-    %check if it's mushroom dataset then take out feature 11
-    filteredOutAttrib = 11;
-    if dataFileName == 'Mushroom.mat'
-        eligibleAttribs = [eligibleAttribs(1:filteredOutAttrib-1) ...
-                           eligibleAttribs(filteredOutAttrib+1:end)];
-    end
-    
-    %learn decision tree of passed depth on current training data    
-    startDepth = 0;
-    learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
-                                 startDepth, depth, eligibleAttribs, ...
-                                 mode(trainingLabels));
-    
-    %print the learned decision tree                         
-    printDtree(learnedTreeRoot);
-    
-    
-    %evaluate learned decision tree on validation data
-    errorCount = 0;
-    for validIter=1:size(validationData,1)
-        %get prediction from learn stump
-        label = predictFrmDtree(validationData(validIter, :), learnedTreeRoot);
-        if label ~= validationLabels(validIter)
-            errorCount = errorCount + 1;
-        end
-    end
-    
-    currErrorPc = errorCount/size(validationData,1);
-    
-    if currErrorPc <= max(errorPcs)
-        bestLearnedTree = learnedTreeRoot;
-    end
-    
-    errorPcs(iter) = errorCount/size(validationData,1);
+    errorPcs(iter) = testErr;
 
 end
 
-fprintf('\n');
+fprintf('\n*************************************************\n');
 fprintf(dataFileName);
 %errorPcs
-fprintf('\nmean error is as follow:\n');
+fprintf('\nMean test error is as follow:\n');
 mean(errorPcs)
 
-fprintf('\nstandard deviation in error is as follow:\n');
+fprintf('\nStandard deviation in test error is as follow:\n');
 std(errorPcs)
+fprintf('\n');
