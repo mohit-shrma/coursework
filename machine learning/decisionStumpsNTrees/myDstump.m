@@ -51,7 +51,7 @@ for iter=1:numFolds
     
     %learn decision stump on current training data
     %TODO: write learnDstump method
-    [stumpAttrib, stumpAttribValueClass] = learnDstump(trainingdata, trainingLabels);
+    [stumpAttrib, stumpAttribValueClass] = learnDstump(trainingData, trainingLabels);
     
     %evaluate learned decision stump on validation data
     errorCount = 0;
@@ -90,7 +90,7 @@ std(errorPcs)
 function[label] = predictFromStump(dataVec, stumpAttrib, ...
                                    stumpAttribValueClass)
 
-dataStumpAttribVal = dataVec[stumpAttrib]
-classRowInd = find(dataVec(stumpAttrib) == dataStumpAttribVal)
+dataStumpAttribVal = dataVec(stumpAttrib);
+classRowInd = find(dataVec(stumpAttrib) == dataStumpAttribVal);
 %TOSO: check if empty then assign default class ?
-label = stumpAttribValueClass(classInd, 2)
+label = stumpAttribValueClass(classRowInd, 2);
