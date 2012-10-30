@@ -11,7 +11,9 @@
 function [trainErrorPc, testErrorPc] = dtree(trainingData, trainingLabels,...
                                              testData, testLabels, ...
                                              depth)
-
+    %size of taining data
+    sizeTrainData = size(trainingData, 1);
+    
     %get valid attributes list for data
     eligibleAttribs = [1:size(trainingData, 2)];
     
@@ -27,10 +29,13 @@ function [trainErrorPc, testErrorPc] = dtree(trainingData, trainingLabels,...
       
     %learn decision tree of passed depth on current training data    
     startDepth = 0;
+    isWeighted = 0;
+    dataWeights = ones(sizeTrainData, 1)/sizeTrainData;
     learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
                                  startDepth, depth, eligibleAttribs, ...
-                                 mode(trainingLabels));
-    
+                                 mode(trainingLabels), isWeighted, ...
+                                 dataWeights);
+        
     %print the learned decision tree
     fprintf('\n\n************Decision tree is as follow **************\n')
     printDtree(learnedTreeRoot);

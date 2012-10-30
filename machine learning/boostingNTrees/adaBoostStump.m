@@ -25,6 +25,7 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
                            eligibleAttribs(filteredOutAttrib+1:end)];
     end
     
+    %size of taining data
     sizeTrainData = size(trainingData, 1);
     
     %initialize weights vector for data
@@ -36,13 +37,24 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
     %store learned stumps
     learnedStumps = zeros(numStumps, 1);
     
+    %we are learning weighted stumps
+    isWeighted = 1;
+    
+    %weights on data
+    dataWeights = ones(sizeTrainData, 1)/sizeTrainData;
+    
     %run boosting iterations
     for boostIter=1:numStumps
         
         %learn weighted decision stump
-        %TODO: write learn weighted dstump
-        learnedDStump = learnWeightedStump(trainingData, trainingLabels, ...
-                                          eligibleAttribs);
+        startDepth = 0;
+        %decision stump height is 1
+        depth = 1;
+        learnedDStump = learnDtree(trainingData, trainingLabels, ...
+                                          startDepth, depth, ...
+                                           eligibleAttribs, ...
+                                           mode(trainingLabels), ...
+                                           isWeighted, );
         learnedStumps(boostIter) = learnedDStump;
         %evaluate learned decision stump on training data
         errorCount = 0;
@@ -50,8 +62,7 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
         indicatorError = zeros(size(trainingData, 1), 1);
         for trainIter=1:size(trainingData, 1)
             %get prediction from learned stump
-            %TODO: write predict Frm Dstump
-            label = predictFrmDstump(trainingData(trainIter, :), learnedDStump);
+            label = predictFrmDtree(trainingData(trainIter, :), learnedDStump);
             if label ~= trainingLabels(trainIter)
                 weightedErr += weightsTrainingData(boostIter)
                 indicatorError(trainIter) = 1;
@@ -70,7 +81,6 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
     end
     
     %make predictions using final model, using predictFrmBoost method
-    
     %evaluate training data from new model
     errorCount = 0;
     for validIter=1:size(trainingData, 1)

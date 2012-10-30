@@ -9,7 +9,8 @@
 
 function [root] = learnDtree(data, labels, currDepth, ...
                              maxDepth, eligibleAttribs, ...
-                             prevMajorityLabel)
+                             prevMajorityLabel, isWeighted, ...
+                             dataWeights)
 
 %get the number of attributes
 numAttribs = size(data, 2);
@@ -31,6 +32,8 @@ root.childAttribVal = -99;
 %initialize child to default empty
 root.child = struct(root);
 
+%compute sum of weights if weighted
+netDataWeights = sum(dataWeights);    
 
 if sizeData == 0 || currDepth == maxDepth
     %pass node with default label 
@@ -61,14 +64,28 @@ else
             %get the indices having current attribute value
             dataInd = find(data(:, currAttrib) == ...
                            attribValues(attribValIter));
-            %get the number for corresponding classes, assuming two
-            %classes 1 & 2
-            class1Count = length(find(labels(dataInd) == 1));
-            class2Count = length(dataInd) - class1Count;
-            conditionalEntropy = conditionalEntropy + ...
-                computeConditionalEntropy(sizeData, class1Count, ...
-                                          class2Count); 
+            if isWeighted ~= 1
+                %compute entropy without considering weights
+                %get the number for corresponding classes, assuming two
+                %classes 1 & 2
+                class1Count = length(find(labels(dataInd) == 1));
+                class2Count = length(dataInd) - class1Count;
+                conditionalEntropy = conditionalEntropy + ...
+                    computeConditionalEntropy(sizeData, class1Count, ...
+                                              class2Count); 
+            else
+                %compute entropy considering weights on data
+                %get the corresponding row indices of class1 & class2
+                class1Ind = find(labels(dataInd) == 1);
+                class2Ind = find(labels(dataInd) == -1);
+                class1Weights = sum(dataWeights(class1Ind));
+                class2Weights = sum(dataWeights(class2Ind));
+                conditionalEntropy = conditionalEntropy + ...
+                    computeConditionalEntropy(netDataWeights, class1Weights, ...
+                                              class2Weights); 
+            end
         end
+        
         if conditionalEntropy < bestCondnEntropy
             bestAttrib = currAttrib;
             bestCondnEntropy = conditionalEntropy;
@@ -99,6 +116,7 @@ else
                                attribValues(attribValIter));
         filteredData = data(filteredIndices, :);
         filteredLabels = labels(filteredIndices);
+        filteredDataWeights = dataWeights[filteredIndices];
         %weird initialization to make the recursive substructure
         %assignment works. If don't do this for  then
         %report structure can not be assigned as they are different
@@ -106,12 +124,14 @@ else
             root.child.child = struct([]);
         end
         %learn subtree for this attribute
+        
         root.child(attribValIter) = learnDtree(filteredData, ...
                                                filteredLabels, ...
                                                currDepth + 1, ...
                                                maxDepth, ...
                                                filteredAttribs, ...
-                                               majLabel);
+                                               majLabel, isWeighted, ...
+                                               filteredDataWeights);
         root.childAttribVal(attribValIter) = attribValues(attribValIter);  
     end
     
