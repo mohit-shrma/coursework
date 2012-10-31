@@ -43,6 +43,8 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
     %weights on data
     dataWeights = ones(sizeTrainData, 1)/sizeTrainData;
     
+    
+    
     %run boosting iterations
     for boostIter=1:numStumps
         
@@ -55,6 +57,8 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
                                            eligibleAttribs, ...
                                            mode(trainingLabels), ...
                                            isWeighted, dataWeights);
+        %printDtree(learnedDStump);
+                                       
         if size(learnedStumps, 1) == 0
             
             for iter=1:numStumps
@@ -79,12 +83,22 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
         %normalize the weighted err, (epsM)
         normalizeWeightedErr = weightedErr / sum(weightsTrainingData);
         
+        
+        
         %find classifier weight
         boostClassifierWeights(boostIter) = log((1-normalizeWeightedErr)/normalizeWeightedErr);
+        
+        
+        if normalizeWeightedErr < 1/2
+            fprintf('\nnot a weak learner, will not get theoretical result\n');
+            break;
+        end
         
         %update the weights
         weightsTrainingData = weightsTrainingData .* exp(boostClassifierWeights(boostIter)*indicatorError);
     end
+    
+    learnedStumps = learnedStumps(1:boostIter);
     
     %make predictions using final model, using predictFrmBoost method
     %evaluate training data from new model
