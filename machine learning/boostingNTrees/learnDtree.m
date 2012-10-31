@@ -35,7 +35,7 @@ root.child = struct(root);
 %compute sum of weights if weighted
 netDataWeights = sum(dataWeights);    
 
-if sizeData == 0 || currDepth == maxDepth
+if sizeData == 0 
     %pass node with default label 
     root.numChild = 0;
     root.classLabel = prevMajorityLabel;
@@ -43,7 +43,7 @@ elseif length(unique(labels)) == 1
     %if all passed data of same label    
     root.numChild = 0;
     root.classLabel = labels(1);  
-elseif isempty(eligibleAttribs)
+elseif isempty(eligibleAttribs) || currDepth == maxDepth
     %if all the eligible attributes is empty or {}, return majority
     %value
     root.numChild = 0;

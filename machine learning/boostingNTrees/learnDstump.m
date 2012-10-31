@@ -34,7 +34,7 @@ for attribIter=1:numAttribs
         dataInd = find(data(:, attribIter) == ...
                        attribValues(attribValIter));
         %get the number for corresponding classes, assuming two
-        %classes 1 & 2
+        %classes 1 & -1
         class1Count = length(find(labels(dataInd) == 1));
         class2Count = length(dataInd) - class1Count;
         conditionalEntropy = conditionalEntropy + ...
@@ -47,7 +47,7 @@ for attribIter=1:numAttribs
         if class1Count > class2Count
             attribValueClass(attribValIter, 2) = 1;
         else
-            attribValueClass(attribValIter, 2) = 2;
+            attribValueClass(attribValIter, 2) = -1;
         end
             
     end
