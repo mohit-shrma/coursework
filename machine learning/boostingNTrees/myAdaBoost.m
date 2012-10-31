@@ -7,7 +7,7 @@
    algorithm: appply adaboost on data using decision tree as classifier
 %}
 
-function [] = myDtree(dataFileName, numStumps, numFolds)
+function [] = myAdaBoost(dataFileName, numStumps, numFolds)
 
 load(dataFileName);
 

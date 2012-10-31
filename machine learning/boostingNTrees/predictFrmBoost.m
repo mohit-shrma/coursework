@@ -15,15 +15,14 @@ weightedClassifiersSum = 0;
 
 %sum up the weighted boosted classifier label
 for iter=1:size(learnedStumps, 1)
-    weightedClassifiersSum += boostClassifierWeights(iter)*...
-        (predictFrmDtree(trainingData(validIter, :),...
-                          learnedDStumps(iter));
+    weightedClassifiersSum = weightedClassifiersSum + boostClassifierWeights(iter)*...
+        (predictFrmDtree(dataVec, learnedStumps(iter)));
 end
 
 %return labels based on sign
-if weightedClassifiersSum > 0:
-    return 1;
+if weightedClassifiersSum > 0
+    label = 1;
 else
-    return -1;
+    label = -1;
 end
 

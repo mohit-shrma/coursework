@@ -32,10 +32,10 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
     weightsTrainingData = ones(sizeTrainData, 1)/sizeTrainData;
     
     %initialize boost iteration weights
-    boostClassifierWeights = zeros(numstumps, 1)
+    boostClassifierWeights = zeros(numStumps, 1);
     
     %store learned stumps
-    learnedStumps = zeros(numStumps, 1);
+    learnedStumps = [];
     
     %we are learning weighted stumps
     isWeighted = 1;
@@ -54,7 +54,14 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
                                           startDepth, depth, ...
                                            eligibleAttribs, ...
                                            mode(trainingLabels), ...
-                                           isWeighted, );
+                                           isWeighted, dataWeights);
+        if size(learnedStumps, 1) == 0
+            
+            for iter=1:numStumps
+                learnedStumps = [struct(learnedDStump); learnedStumps];
+            end
+        end
+        
         learnedStumps(boostIter) = learnedDStump;
         %evaluate learned decision stump on training data
         errorCount = 0;
@@ -64,20 +71,19 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
             %get prediction from learned stump
             label = predictFrmDtree(trainingData(trainIter, :), learnedDStump);
             if label ~= trainingLabels(trainIter)
-                weightedErr += weightsTrainingData(boostIter)
+                weightedErr = weightedErr + weightsTrainingData(boostIter);
                 indicatorError(trainIter) = 1;
             end
         end
         
         %normalize the weighted err, (epsM)
-        normalizeWeightedErr = weightedErr / ...
-            sum(weightsTrainingData)
+        normalizeWeightedErr = weightedErr / sum(weightsTrainingData);
         
         %find classifier weight
         boostClassifierWeights(boostIter) = log((1-normalizeWeightedErr)/normalizeWeightedErr);
         
         %update the weights
-        weightsTrainingData = weightsTrainingData .* exp(alpha*indicatorError);
+        weightsTrainingData = weightsTrainingData .* exp(boostClassifierWeights(boostIter)*indicatorError);
     end
     
     %make predictions using final model, using predictFrmBoost method

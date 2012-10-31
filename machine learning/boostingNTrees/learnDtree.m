@@ -116,7 +116,7 @@ else
                                attribValues(attribValIter));
         filteredData = data(filteredIndices, :);
         filteredLabels = labels(filteredIndices);
-        filteredDataWeights = dataWeights[filteredIndices];
+        filteredDataWeights = dataWeights(filteredIndices);
         %weird initialization to make the recursive substructure
         %assignment works. If don't do this for  then
         %report structure can not be assigned as they are different
