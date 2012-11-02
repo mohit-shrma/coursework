@@ -5,13 +5,12 @@ name: Mohit Sharma
 id: 4465482
 
 
-cd FisherDiscNGenerativ
-To run diagFisher e.g. : >> testError = diagFisher(Iris,10);
-To run fisher e.g. : >> testError = fisher(Iris,10);
+cd boostingNTrees
+To run mydstump e.g. : >> myDstump('Mushroom.mat', depth, numFolds);
+To run myDtree e.g. : >> myDtree('Mushroom.mat', depth, numFolds);
+To run adaboost e.g. : >> myAdaBoost('Mushroom.mat', numberOfStumps, numFolds);
+To run logitboost e.g. : >> myLogitBoost('Mushroom.mat', numberOfStumps, numFolds);
 
-
-cd NaiveBayesNLogistic
-To run logistic regression e.g:  logisticRegression(Pima,100,[5 10 15 20 25 30])
-To run naive bayes e.g:  naiveBayesGaussian(Pima,100,[5 10 15 20 25 30])
+myDstump2 is my old implementation, i included just for the sake to check the separate code which i previously implemented. in new code i redirect all to mydtree.m
 
 I have copied all the matlab files needed for running the codes. In case any file is found to be missing do please let me know as I am new to matlab I didn't know that you can write functions in same file. Do let me know if any of file is missing.
