@@ -7,7 +7,7 @@
    algorithm: appply adaboost on data using decision tree as classifier
 %}
 
-function [] = myAdaBoost(dataFileName, numStumps, numFolds)
+function [] = myLogitBoost(dataFileName, numStumps, numFolds)
 
 load(dataFileName);
 
@@ -46,8 +46,8 @@ for iter=1:numFolds
         trainingLabels = permLabels(1:validStart-1);       
     end
     
-    %TODO: apply ada boost
-    [trainErr, testErr] = adaBoostStump(trainingData, trainingLabels,...
+    %apply logit boost
+    [trainErr, testErr] = logitBoostStump(trainingData, trainingLabels,...
                                 validationData, validationLabels, ...
                                 numStumps);
         

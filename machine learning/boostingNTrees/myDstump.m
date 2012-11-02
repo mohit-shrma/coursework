@@ -92,5 +92,4 @@ function[label] = predictFromStump(dataVec, stumpAttrib, ...
 
 dataStumpAttribVal = dataVec(stumpAttrib);
 classRowInd = find(stumpAttribValueClass(:,1) == dataStumpAttribVal);
-%TOSO: check if empty then assign default class ?
 label = stumpAttribValueClass(classRowInd, 2);

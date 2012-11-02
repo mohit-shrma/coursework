@@ -4,11 +4,11 @@
    date: 10/25/2012
    name: Mohit Sharma
    id: 4465482
-   algorithm: apply adaboost using stumps on trianing data, print it and ...
+   algorithm: apply logitboost using stumps on trianing data, print it and ...
        output error rate on training set and test set 
 %}
 
-function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabels,...
+function [trainErrorPc, testErrorPc] = logitBoostStump(trainingData, trainingLabels,...
                                                   testData, testLabels, ...
                                                   numStumps)
 
@@ -88,12 +88,10 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
         %normalize the weighted err, (epsM)
         eps = weightedErr / sum(weightsTrainingData);
         %compute current classifier weight
-        alpha = 0.5*(log((1-eps)/eps));
+        alpha = (log((1-eps)/eps));
         %reweight the data
-        weightsTrainingData = (weightsTrainingData) .* ...
-            exp(-alpha*indicatorError)/(sum(weightsTrainingData));
+        weightsTrainingData = ((weightsTrainingData) + log(1+exp(-alpha*indicatorError)))/(sum(weightsTrainingData));
         boostClassifierWeights(boostIter) = alpha;
-        
     end
     
     learnedStumps = learnedStumps(1:boostIter);
@@ -124,3 +122,5 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
     end
     testErrorPc = errorCount/size(testData,1);
     fprintf('\nError rate on test set is %d', testErrorPc);
+       
+       

@@ -1,0 +1,17 @@
+CSci5525 Fall'12 Homework 1
+login: sharm163@umn.edu
+date: 10/31/2012
+name: Mohit Sharma
+id: 4465482
+
+
+cd FisherDiscNGenerativ
+To run diagFisher e.g. : >> testError = diagFisher(Iris,10);
+To run fisher e.g. : >> testError = fisher(Iris,10);
+
+
+cd NaiveBayesNLogistic
+To run logistic regression e.g:  logisticRegression(Pima,100,[5 10 15 20 25 30])
+To run naive bayes e.g:  naiveBayesGaussian(Pima,100,[5 10 15 20 25 30])
+
+I have copied all the matlab files needed for running the codes. In case any file is found to be missing do please let me know as I am new to matlab I didn't know that you can write functions in same file. Do let me know if any of file is missing.

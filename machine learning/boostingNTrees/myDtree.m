@@ -24,7 +24,8 @@ sizeData = size(permData,1);
 leftDataSize = int16(sizeData/numFolds);
 
 %store accuracy of learned parameters for each validation
-errorPcs = zeros(numFolds, 1);
+trainErrorPcs = zeros(numFolds, 1);
+testErrorPcs = zeros(numFolds, 1);
 
 for iter=1:numFolds
     validStart = (iter-1) * leftDataSize + 1;
@@ -51,16 +52,30 @@ for iter=1:numFolds
                                 validationData, validationLabels, ...
                                 depth);
     
-    errorPcs(iter) = testErr;
-
+    testErrorPcs(iter) = testErr;
+    trainErrorPcs(iter) = trainErr;
 end
 
 fprintf('\n*************************************************\n');
-fprintf(dataFileName);
-%errorPcs
-fprintf('\nMean test error is as follow:\n');
-mean(errorPcs)
 
-fprintf('\nStandard deviation in test error is as follow:\n');
-std(errorPcs)
+%trainErrorPcs
+fprintf('\nTrain Errors: \n');
+for iter=1:size(trainErrorPcs, 1)
+    fprintf('%d\n', trainErrorPcs(iter));
+end
+
+fprintf('\nMean train error is %d\n', mean(trainErrorPcs));
+fprintf('\nStandard deviation in train error is %d', std(trainErrorPcs));
 fprintf('\n');
+
+%testErrorPcs
+fprintf('\nTest Errors: \n');
+for iter=1:size(testErrorPcs, 1)
+    fprintf('%d\n', testErrorPcs(iter));
+end
+
+fprintf('\nMean test error is %d', mean(testErrorPcs));
+fprintf('\nStandard deviation in test error is %d', std(testErrorPcs));
+fprintf('\n');
+
+

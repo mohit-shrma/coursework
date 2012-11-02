@@ -89,6 +89,8 @@ else
         if conditionalEntropy < bestCondnEntropy
             bestAttrib = currAttrib;
             bestCondnEntropy = conditionalEntropy;
+            
+            
         end
     end
     
