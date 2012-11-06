@@ -11,21 +11,30 @@ function [] = printDtree(root)
 
 queue = [root];
 
+currDepth = 0;
+fprintf('\ndepth = %d\n', 0);
 while ~isempty(queue)
     %pop the node at end of queue
     node = queue(end);
     queue = queue(1:end-1);
     
-    if node.numChild ~= 0
+    if node.depth ~= currDepth
+            fprintf('\ndepth = %d\n', node.depth);
+            currDepth = node.depth;
+    end
+    
+    if node.numChild ~= 0   
+        
         %print the attribute of current popped node
-        fprintf('\n attribute : %d', node.attrib);
+        fprintf(' attribute:%d', node.attrib);        
+        
         %add child nodes to queue
-        for childIter=1:numChild
-            queue = [queue node.child(childIter)];
+        for childIter=1:node.numChild
+            queue = [node.child(childIter) queue];
         end
     else
         %leaf encountered
-        fprintf('\n class label: %d', node.classLabel);
+        fprintf(' %d', node.classLabel);
     end
         
 end

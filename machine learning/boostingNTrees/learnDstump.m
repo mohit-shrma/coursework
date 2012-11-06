@@ -25,21 +25,21 @@ bestCondnEntropy = 1000;
 %search for the best attribute to split
 for attribIter=1:numAttribs
     attribValues = unique(data(:, attribIter));
-    attribValueClass = zeros(size(attribvalues), 2);
+    attribValueClass = zeros(length(attribValues), 2);
     %compute conditional entropy and class count corresponding to
     %each attribute
     conditionalEntropy = 0;
     for attribValIter=1:size(attribValues, 1)
         %get the indices having current attribute value
         dataInd = find(data(:, attribIter) == ...
-                       attribValues(attribValIter))
+                       attribValues(attribValIter));
         %get the number for corresponding classes, assuming two
-        %classes 1 & 2
-        class1Count = length(find(labels(dataInd)) == 1);
+        %classes 1 & -1
+        class1Count = length(find(labels(dataInd) == 1));
         class2Count = length(dataInd) - class1Count;
         conditionalEntropy = conditionalEntropy + ...
             computeConditionalEntropy(sizeData, class1Count, ...
-                                      class2Count) 
+                                      class2Count); 
         %fill the corresponding class in attribute-class matrix
         attribValueClass(attribValIter, 1) = ...
             attribValues(attribValIter);
@@ -47,7 +47,7 @@ for attribIter=1:numAttribs
         if class1Count > class2Count
             attribValueClass(attribValIter, 2) = 1;
         else
-            attribValueClass(attribValIter, 2) = 2;
+            attribValueClass(attribValIter, 2) = -1;
         end
             
     end

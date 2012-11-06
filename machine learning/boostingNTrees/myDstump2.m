@@ -4,11 +4,11 @@
    date: 10/25/2012
    name: Mohit Sharma
    id: 4465482
-   algorithm: learn decision tree on training data for passed depth and apply k-fold ...
+   algorithm: learn decision stumps on training data and apply k-fold ...
        validation where k is passed as an argument to function
 %}
 
-function [] = myDtree(dataFileName, depth, numFolds)
+function [] = myDstump(dataFileName, numFolds)
 
 load(dataFileName);
 
@@ -26,8 +26,9 @@ leftDataSize = int16(sizeData/numFolds);
 %store accuracy of learned parameters for each validation
 errorPcs = zeros(numFolds, 1);
 
-bestLearnedTree = []
-
+bestLearnedAttrib = -1;
+bestLearnedAttribValueClass = [];
+        
 for iter=1:numFolds
     validStart = (iter-1) * leftDataSize + 1;
     validEnd = validStart + leftDataSize - 1;
@@ -48,28 +49,17 @@ for iter=1:numFolds
         trainingLabels = permLabels(1:validStart-1);       
     end
     
-
-    %get valid attributes list for data
-    eligibleAttribs = [1:size(data, 2)];
+    %learn decision stump on current training data
+    %TODO: write learnDstump method
+    [stumpAttrib, stumpAttribValueClass] = learnDstump(trainingData, trainingLabels);
     
-    %check if it's mushroom dataset then take out feature 11
-    filteredOutAttrib = 11;
-    if dataFileName == 'Mushroom.mat'
-        eligibleAttribs = [eligibleAttribs(1:filteredOutAttrib-1) ...
-                           eligibleAttribs(filteredOutAttrib+1:end)];
-    end
-    
-    %learn decision tree of passed depth on current training data    
-    startDepth = 0;
-    learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
-                                 startDepth, depth, eligibleAttribs, ...
-                                 mode(trainingLabels));
-    
-    %evaluate learned decision tree on validation data
+    %evaluate learned decision stump on validation data
     errorCount = 0;
     for validIter=1:size(validationData,1)
         %get prediction from learn stump
-        label = predictFrmDtree(validationData(validIter, :), learnedTreeRoot);
+        %TODO: write predict from stump method
+        label = predictFromStump(validationData(validIter, :), ...
+                                 stumpAttrib, stumpAttribValueClass);
         if label ~= validationLabels(validIter)
             errorCount = errorCount + 1;
         end
@@ -78,9 +68,28 @@ for iter=1:numFolds
     currErrorPc = errorCount/size(validationData,1);
     
     if currErrorPc <= max(errorPcs)
-        bestLearnedTree = learnedTreeRoot;
+        bestLearnedAttrib = stumpAttrib;
+        bestLearnedAttribValueClass = stumpAttribValueClass;
     end
     
     errorPcs(iter) = errorCount/size(validationData,1);
 
 end
+
+
+fprintf(dataFileName);
+%errorPcs
+fprintf('\nmean error is as follow:\n');
+mean(errorPcs)
+
+fprintf('\nstandard deviation in error is as follow:\n');
+std(errorPcs)
+
+
+%predict label from learned stump
+function[label] = predictFromStump(dataVec, stumpAttrib, ...
+                                   stumpAttribValueClass)
+
+dataStumpAttribVal = dataVec(stumpAttrib);
+classRowInd = find(stumpAttribValueClass(:,1) == dataStumpAttribVal);
+label = stumpAttribValueClass(classRowInd, 2);

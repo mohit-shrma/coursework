@@ -19,7 +19,7 @@ else
     dataTestAttribValue = dataVec(root.attrib);
     %search for child node having current attribute value
     for childIter=1:root.numChild
-        if root.child(childIter).attribValue == dataTestAttribValue
+        if root.childAttribVal(childIter) == dataTestAttribValue
             classLabel = predictFrmDtree(dataVec, ...
                                          root.child(childIter));
         end
