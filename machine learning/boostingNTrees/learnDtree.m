@@ -76,8 +76,8 @@ else
             else
                 %compute entropy considering weights on data
                 %get the corresponding row indices of class1 & class2
-                class1Ind = find(labels(dataInd) == 1);
-                class2Ind = find(labels(dataInd) == -1);
+                class1Ind = dataInd(find(labels(dataInd) == 1));
+                class2Ind = dataInd(find(labels(dataInd) == -1));
                 class1Weights = sum(dataWeights(class1Ind));
                 class2Weights = sum(dataWeights(class2Ind));
                 conditionalEntropy = conditionalEntropy + ...
