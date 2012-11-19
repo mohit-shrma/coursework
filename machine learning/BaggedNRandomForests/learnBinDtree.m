@@ -10,7 +10,12 @@
 function [root] = learnBinDtree(data, labels, currDepth, ...
                              maxDepth, eligibleAttribs, ...
                              prevMajorityLabel, isWeighted, ...
-                             dataWeights)
+                                dataWeights, isRandomForest, ...
+                                sizeFeatureSet)
+    
+%original attributes
+origAttribs = eligibleAttribs;    
+    
 
 %get the size of data
 sizeData = size(data, 1);
@@ -30,6 +35,16 @@ elseif isempty(eligibleAttribs) || currDepth == maxDepth
     %equals maxDepth, return majority value
     root = Node(-1, -1, mode(labels));
 else
+    
+    if isRandomForest
+        %randomly choose the eligible attributes of specified size
+        %y = datasample(1:10,5,'Replace',false)
+        eligibleAttribs = datasample(origAttribs, sizeFeatureSet, ...
+                                     'Replace', false);
+    end
+    
+    
+    
     %find the best attribute to split on
     [bestAttrib, bestAttribVal] = learnBestAttrib(data, labels, ...
                                                   eligibleAttribs, ...
@@ -41,10 +56,16 @@ else
     %get majority label of currData
     majLabel = mode(labels);
     
-    %passed the attributes filtering out the current attribute
-    currAttribInd = find(eligibleAttribs == bestAttrib);
-    filteredAttribs = [eligibleAttribs(1:currAttribInd-1) ...
-                       eligibleAttribs(currAttribInd+1:length(eligibleAttribs))];
+    if isRandomForest
+        %give original attributes
+        filteredAttribs = origAttribs;
+    else
+        %give filteredattributes
+        %passed the attributes filtering out the current attribute
+        currAttribInd = find(eligibleAttribs == bestAttrib);
+        filteredAttribs = [eligibleAttribs(1:currAttribInd-1) ...
+                           eligibleAttribs(currAttribInd+1:length(eligibleAttribs))];
+    end
     
     %get left child node of current attribute
     %out of the given data get data having < current attribute
@@ -55,7 +76,9 @@ else
     filteredLeftDataWeights = dataWeights(filteredLeftIndices);
     leftChild = learnBinDtree(filteredLeftData, filteredLeftLabels, currDepth ...
                            + 1, maxDepth, filteredAttribs, ...
-                           majLabel, isWeighted, filteredLeftDataWeights);
+                           majLabel, isWeighted, filteredLeftDataWeights, ...
+                              isRandomForest, sizeFeatureSet);
+    
     %get right child node of current attribute
     filteredRightIndices = setdiff([1:sizeData], filteredLeftIndices);
     filteredRightData = data(filteredRightIndices, :);
@@ -63,7 +86,8 @@ else
     filteredRightDataWeights = dataWeights(filteredRightIndices);
     rightChild = learnBinDtree(filteredRightData, filteredRightLabels, currDepth ...
                            + 1, maxDepth, filteredAttribs, ...
-                           majLabel, isWeighted, filteredRightDataWeights);
+                           majLabel, isWeighted, filteredRightDataWeights, ...
+                               isRandomForest, sizeFeatureSet);
     
     %add left child to root
     root.addLeftChild(leftChild);
