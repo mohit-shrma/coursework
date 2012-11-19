@@ -19,6 +19,7 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
     %bad code for the sake of this question, remove below line will
     %work for any data set
     dataFileName = 'Mushroom.mat';
+    dataFileName = 'Mush.mat';
     filteredOutAttrib = 11;
     if strcmp(dataFileName, 'Mushroom.mat') == 1
         eligibleAttribs = [eligibleAttribs(1:filteredOutAttrib-1) ...
@@ -52,17 +53,18 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
         startDepth = 0;
         %decision stump height is 1
         depth = 1;
-        learnedDStump = learnDtree(trainingData, trainingLabels, ...
+        learnedDStump = learnBinDtree(trainingData, trainingLabels, ...
                                           startDepth, depth, ...
                                            eligibleAttribs, ...
                                            mode(trainingLabels), ...
                                            isWeighted, dataWeights);
         %printDtree(learnedDStump);
+        learnedDStump.levelOrderTraversal;
                                        
         if size(learnedStumps, 1) == 0
             
             for iter=1:numStumps
-                learnedStumps = [struct(learnedDStump); learnedStumps];
+                learnedStumps = [learnedDStump learnedStumps];
             end
         end
         
@@ -74,7 +76,8 @@ function [trainErrorPc, testErrorPc] = adaBoostStump(trainingData, trainingLabel
         
         for trainIter=1:size(trainingData, 1)
             %get prediction from learned stump
-            predLabel = predictFrmDtree(trainingData(trainIter, :), learnedDStump);
+            %predLabel = predictFrmDtree(trainingData(trainIter, :), learnedDStump);
+            predLabel = learnedDStump.predictLabel(trainingData(trainIter, :));
             if predLabel ~= trainingLabels(trainIter)
                 indicatorError(trainIter) = -1;
                 errorCount = errorCount + 1;

@@ -21,6 +21,7 @@ function [trainErrorPc, testErrorPc] = dtree(trainingData, trainingLabels,...
     %bad code for the sake of this question, remove below line will
     %work for any data set
     dataFileName = 'Mushroom.mat';
+    dataFileName = 'Mushrm.mat';
     filteredOutAttrib = 11;
     if strcmp(dataFileName, 'Mushroom.mat') == 1
         eligibleAttribs = [eligibleAttribs(1:filteredOutAttrib-1) ...
@@ -31,20 +32,19 @@ function [trainErrorPc, testErrorPc] = dtree(trainingData, trainingLabels,...
     startDepth = 0;
     isWeighted = 0;
     dataWeights = ones(sizeTrainData, 1)/sizeTrainData;
-    learnedTreeRoot = learnDtree(trainingData, trainingLabels, ...
+    learnedTreeRoot = learnBinDtree(trainingData, trainingLabels, ...
                                  startDepth, depth, eligibleAttribs, ...
-                                 mode(trainingLabels), isWeighted, ...
-                                 dataWeights);
+                                 mode(trainingLabels), isWeighted, dataWeights);
         
     %print the learned decision tree
     fprintf('\n\n************Decision tree is as follow **************\n')
-    printDtree(learnedTreeRoot);
+    learnedTreeRoot.levelOrderTraversal;
     
     %evaluate learned decision tree on training data
     errorCount = 0;
     for validIter=1:size(trainingData, 1)
         %get prediction from learn stump
-        label = predictFrmDtree(trainingData(validIter, :), learnedTreeRoot);
+        label =  learnedTreeRoot.predictLabel(trainingData(validIter, :));
         if label ~= trainingLabels(validIter)
             errorCount = errorCount + 1;
         end
@@ -56,7 +56,7 @@ function [trainErrorPc, testErrorPc] = dtree(trainingData, trainingLabels,...
     errorCount = 0;
     for validIter=1:size(testData, 1)
         %get prediction from learn stump
-        label = predictFrmDtree(testData(validIter, :), learnedTreeRoot);
+        label = learnedTreeRoot.predictLabel(testData(validIter, :));
         if label ~= testLabels(validIter)
             errorCount = errorCount + 1;
         end

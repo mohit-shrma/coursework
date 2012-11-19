@@ -14,9 +14,13 @@ function [label] = predictFrmBoost(dataVec, learnedStumps, ...
 weightedClassifiersSum = 0;
 
 %sum up the weighted boosted classifier label
+% for iter=1:size(learnedStumps, 1)
+%     weightedClassifiersSum = weightedClassifiersSum + boostClassifierWeights(iter)*...
+%         (predictFrmDtree(dataVec, learnedStumps(iter)));
+% end
 for iter=1:size(learnedStumps, 1)
     weightedClassifiersSum = weightedClassifiersSum + boostClassifierWeights(iter)*...
-        (predictFrmDtree(dataVec, learnedStumps(iter)));
+        (learnedStumps(iter).predictLabel(dataVec));
 end
 
 %return labels based on sign
