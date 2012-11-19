@@ -132,6 +132,6 @@ plot(numBaseClassifiers, baseClassifierTestErrPcs);
 xlabel('No. of base classifiers');
 ylabel('Test Error');
 title('Bagging');
-saveas(h, strcat(num2str(numLayers), 'bagErr.png'), 'png');
+saveas(h, strcat(num2str(numLayers), 'bagTest.png'), 'png');
 
 fclose(fileID);
