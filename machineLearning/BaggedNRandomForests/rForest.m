@@ -8,7 +8,7 @@
            apply it on test set data
 %}
 
-function [trainErrorPc, testErrorPc] = rForest(trainingData, trainingLabels,...
+function [trainErrorPc, testErrorPc] = rForest(fileID,trainingData, trainingLabels,...
                                              testData, testLabels, ...
                                                sizeFeatureSet, ...
                                                depth)
@@ -61,7 +61,7 @@ function [trainErrorPc, testErrorPc] = rForest(trainingData, trainingLabels,...
         end
     end
     trainErrorPc = errorCount/size(trainingData,1);
-    fprintf('\nError rate on training set is %d', trainErrorPc);
+    fprintf(fileID, '\nError rate on training set is %d', trainErrorPc);
     
     %evaluate learned decision tree on test data
     errorCount = 0;
@@ -73,7 +73,7 @@ function [trainErrorPc, testErrorPc] = rForest(trainingData, trainingLabels,...
         end
     end
     testErrorPc = errorCount/size(testData,1);
-    fprintf('\nError rate on test set is %d', testErrorPc);
+    fprintf(fileID, '\nError rate on test set is %d', testErrorPc);
     
 
 

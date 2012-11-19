@@ -11,7 +11,11 @@
 
 function[testError] = myRForest(dataFileName, randFeatureSetSizes, ...
                                 numFolds, numLayers)
+%strcat(num2str(numLayers), 'bagErr.png')    
+%open file to write or log output    
+fileID = fopen(strcat(num2str(numLayers), 'forestLog.txt'),'w');    
 
+%vectorize the feature set sizes
 randFeatureSetSizes = randFeatureSetSizes(:);                            
                             
 %load the data set
@@ -64,7 +68,7 @@ for randFeatureSetIter=1:size(randFeatureSetSizes, 1)
         %learn the random forest Classifier and get the training
         %and test error
         %TODO: write rForest
-        [trainErr, testErr] = rForest(trainingData, trainingLabels,...
+        [trainErr, testErr] = rForest(fileID, trainingData, trainingLabels,...
                                     validationData, validationLabels, ...
                                     sizeFeatureSet, numLayers);
     
@@ -72,31 +76,31 @@ for randFeatureSetIter=1:size(randFeatureSetSizes, 1)
         trainErrorPcs(iter) = trainErr;
     end
 
-    fprintf('\n*************************************************\n');
-    fprintf('\nNo. of Base Classifier: %d\n', sizeFeatureSet);
+    fprintf(fileID, '\n*************************************************\n');
+    fprintf(fileID, '\nSize. of Feature Set: %d\n', sizeFeatureSet);
     %trainErrorPcs
-    fprintf('\nTrain Errors: \n');
+    fprintf(fileID, '\nTrain Errors: \n');
     for iter=1:size(trainErrorPcs, 1)
-        fprintf('%d\n', trainErrorPcs(iter));
+        fprintf(fileID, '%d\n', trainErrorPcs(iter));
     end
     
     meanTrainErr = mean(trainErrorPcs);
     stdTrainErr = std(trainErrorPcs);
-    fprintf('\nMean train error is %d\n', meanTrainErr);
-    fprintf('\nStandard deviation in train error is %d', stdTrainErr);
-    fprintf('\n');
+    fprintf(fileID, '\nMean train error is %d\n', meanTrainErr);
+    fprintf(fileID, '\nStandard deviation in train error is %d', stdTrainErr);
+    fprintf(fileID, '\n');
     
     %testErrorPcs
-    fprintf('\nTest Errors: \n');
+    fprintf(fileID, '\nTest Errors: \n');
     for iter=1:size(testErrorPcs, 1)
-        fprintf('%d\n', testErrorPcs(iter));
+        fprintf(fileID, '%d\n', testErrorPcs(iter));
     end
     
     meanTestErr = mean(testErrorPcs);
     stdTestErr = std(testErrorPcs);
-    fprintf('\nMean test error is %d', meanTestErr);
-    fprintf('\nStandard deviation in test error is %d', stdTestErr);
-    fprintf('\n');
+    fprintf(fileID, '\nMean test error is %d', meanTestErr);
+    fprintf(fileID, '\nStandard deviation in test error is %d', stdTestErr);
+    fprintf(fileID, '\n');
     
     %store the learned mean error and test error
     randFeatureTrainErrPcs(randFeatureSetIter) = meanTrainErr;
@@ -106,9 +110,9 @@ end
 %set return value
 testError = randFeatureTestErrPcs;
 
-fprintf('\nSize of Features\tTrainError\tTestError');
+fprintf(fileID, '\nSize of Features\tTrainError\tTestError');
 for randFeatureSetIter=1:size(randFeatureSetSizes, 1)
-    fprintf('\n%d\t%d\t%d', randFeatureSetSizes(randFeatureSetIter), ...
+    fprintf(fileID, '\n%d\t%d\t%d', randFeatureSetSizes(randFeatureSetIter), ...
             randFeatureTrainErrPcs(randFeatureSetIter), ...
             randFeatureTestErrPcs(randFeatureSetIter));
     
@@ -128,3 +132,5 @@ xlabel('Size of Features');
 ylabel('Test Error');
 title('Random Forests');
 saveas(h, strcat(num2str(numLayers),'rfTest.png'), 'png');
+
+fclose(fileID);

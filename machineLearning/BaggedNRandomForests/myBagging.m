@@ -11,7 +11,11 @@
 
 function[testError] = myBagging(dataFileName, numBaseClassifiers, ...
                                 numFolds, numLayers)
-                            
+%strcat(num2str(numLayers), 'bagErr.png')    
+%open file to write or log output    
+fileID = fopen(strcat(num2str(numLayers), 'bagLog.txt'),'w');    
+    
+%columnize num of base classifiers sequence                            
 numBaseClassifiers = numBaseClassifiers(:);
                             
 %load the data set
@@ -64,7 +68,7 @@ for numBaseIter=1:size(numBaseClassifiers, 1)
         end
     
         %learn the bagged Classifier and get the training and test error
-        [trainErr, testErr] = bagging(trainingData, trainingLabels,...
+        [trainErr, testErr] = bagging(fileID, trainingData, trainingLabels,...
                                     validationData, validationLabels, ...
                                     numBaseClassifier, numLayers);
     
@@ -72,31 +76,31 @@ for numBaseIter=1:size(numBaseClassifiers, 1)
         trainErrorPcs(iter) = trainErr;
     end
 
-    fprintf('\n*************************************************\n');
-    fprintf('\nNo. of Base Classifier: %d\n', numBaseClassifier);
+    fprintf(fileID, '\n*************************************************\n');
+    fprintf(fileID, '\nNo. of Base Classifier: %d\n', numBaseClassifier);
     %trainErrorPcs
-    fprintf('\nTrain Errors: \n');
+    fprintf(fileID, '\nTrain Errors: \n');
     for iter=1:size(trainErrorPcs, 1)
-        fprintf('%d\n', trainErrorPcs(iter));
+        fprintf(fileID, '%d\n', trainErrorPcs(iter));
     end
     
     meanTrainErr = mean(trainErrorPcs);
     stdTrainErr = std(trainErrorPcs);
-    fprintf('\nMean train error is %d\n', meanTrainErr);
-    fprintf('\nStandard deviation in train error is %d', stdTrainErr);
-    fprintf('\n');
+    fprintf(fileID, '\nMean train error is %d\n', meanTrainErr);
+    fprintf(fileID, '\nStandard deviation in train error is %d', stdTrainErr);
+    fprintf(fileID, '\n');
     
     %testErrorPcs
-    fprintf('\nTest Errors: \n');
+    fprintf(fileID, '\nTest Errors: \n');
     for iter=1:size(testErrorPcs, 1)
-        fprintf('%d\n', testErrorPcs(iter));
+        fprintf(fileID, '%d\n', testErrorPcs(iter));
     end
     
     meanTestErr = mean(testErrorPcs);
     stdTestErr = std(testErrorPcs);
-    fprintf('\nMean test error is %d', meanTestErr);
-    fprintf('\nStandard deviation in test error is %d', stdTestErr);
-    fprintf('\n');
+    fprintf(fileID, '\nMean test error is %d', meanTestErr);
+    fprintf(fileID, '\nStandard deviation in test error is %d', stdTestErr);
+    fprintf(fileID, '\n');
     
     %store the learned mean error and test error
     baseClassifierTrainErrPcs(numBaseIter) = meanTrainErr;
@@ -106,9 +110,9 @@ end
 %set return value
 testError = baseClassifierTrainErrPcs;
 
-fprintf('\nNo. of Base Classifiers\tTrainError\tTestError');
+fprintf(fileID, '\nNo. of Base Classifiers\tTrainError\tTestError');
 for numBaseIter=1:size(numBaseClassifiers, 1)
-    fprintf('\n%d\t%d\t%d', numBaseClassifiers(numBaseIter), ...
+    fprintf(fileID, '\n%d\t%d\t%d', numBaseClassifiers(numBaseIter), ...
             baseClassifierTrainErrPcs(numBaseIter), ...
             baseClassifierTestErrPcs(numBaseIter));
     
@@ -129,3 +133,5 @@ xlabel('No. of base classifiers');
 ylabel('Test Error');
 title('Bagging');
 saveas(h, strcat(num2str(numLayers), 'bagErr.png'), 'png');
+
+fclose(fileID);
