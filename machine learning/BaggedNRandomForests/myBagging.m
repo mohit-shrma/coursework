@@ -115,15 +115,17 @@ for numBaseIter=1:size(numBaseClassifiers, 1)
 end
 
 %plot base classifiers vs training errors 
-clf
+h = figure;
 plot(numBaseClassifiers, baseClassifierTrainErrPcs);
 xlabel('No. of base classifiers');
 ylabel('Training Error');
 title('Bagging');
-pause
-clf
+saveas(h, 'bagTrain.png', 'png');
+
 %plot base classifiers vs test errors
+h = figure;
 plot(numBaseClassifiers, baseClassifierTestErrPcs);
 xlabel('No. of base classifiers');
 ylabel('Test Error');
 title('Bagging');
+saveas(h, 'bagErr.png', 'png');

@@ -115,13 +115,16 @@ for randFeatureSetIter=1:size(randFeatureSetSizes, 1)
 end
 
 %plot FeatureSetSizes vs training errors 
+h = figure;
 plot(randFeatureSetSizes, randFeatureTrainErrPcs);
 xlabel('Size of Features');
 ylabel('Training Error');
 title('Random Forests');
-pause
+saveas(h, 'rfTrain.png', 'png');
 %plot FeatureSetSizes vs test errors
+h = figure;
 plot(randFeatureSetSizes, randFeatureTestErrPcs);
 xlabel('Size of Features');
 ylabel('Test Error');
 title('Random Forests');
+saveas(h, 'rfTest.png', 'png');
