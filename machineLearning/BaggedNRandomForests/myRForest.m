@@ -120,11 +120,11 @@ plot(randFeatureSetSizes, randFeatureTrainErrPcs);
 xlabel('Size of Features');
 ylabel('Training Error');
 title('Random Forests');
-saveas(h, 'rfTrain.png', 'png');
+saveas(h, strcat(num2str(numLayers),'rfTrain.png'), 'png');
 %plot FeatureSetSizes vs test errors
 h = figure;
 plot(randFeatureSetSizes, randFeatureTestErrPcs);
 xlabel('Size of Features');
 ylabel('Test Error');
 title('Random Forests');
-saveas(h, 'rfTest.png', 'png');
+saveas(h, strcat(num2str(numLayers),'rfTest.png'), 'png');
