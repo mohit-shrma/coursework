@@ -20,9 +20,8 @@ function [trainErrorPc, testErrorPc] = rForest(fileID,trainingData, trainingLabe
     %get valid attributes list for data
     eligibleAttribs = [1:size(trainingData, 2)];
     
-    %number of bootstrapped samples to learn classifiers, not
-    %specified in question using 10 as default
-    numBaseClassifier = 10;
+    %number of bootstrapped samples to learn classifiers, using 30 as default
+    numBaseClassifier = 30;
     
     %store learned classifier in array
     baggedClassifiers = Node.empty(numBaseClassifier, 0);
