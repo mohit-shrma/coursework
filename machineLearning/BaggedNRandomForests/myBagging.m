@@ -119,7 +119,7 @@ h = figure;
 plot(numBaseClassifiers, baseClassifierTrainErrPcs);
 xlabel('No. of base classifiers');
 ylabel('Training Error');
-title('Bagging');
+title(strcat(num2str(numLayers),'-layer Bagging'));
 saveas(h, strcat(num2str(numLayers), 'bagTrain.png'), 'png');
 
 %plot base classifiers vs test errors
@@ -127,7 +127,7 @@ h = figure;
 plot(numBaseClassifiers, baseClassifierTestErrPcs);
 xlabel('No. of base classifiers');
 ylabel('Test Error');
-title('Bagging');
+title(strcat(num2str(numLayers),'-layer Bagging'));
 saveas(h, strcat(num2str(numLayers), 'bagTest.png'), 'png');
 
 fclose(fileID);
