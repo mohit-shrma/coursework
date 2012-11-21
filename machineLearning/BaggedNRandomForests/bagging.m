@@ -58,7 +58,7 @@ function [trainErrorPc, testErrorPc] = bagging(fileID, trainingData, trainingLab
         end
     end
     trainErrorPc = errorCount/size(trainingData,1);
-    fprintf(fileID, '\nError rate on training set is %d', trainErrorPc);
+    %fprintf(fileID, '\nError rate on training set is %d', trainErrorPc);
     
     %evaluate learned decision tree on test data
     errorCount = 0;
@@ -70,7 +70,7 @@ function [trainErrorPc, testErrorPc] = bagging(fileID, trainingData, trainingLab
         end
     end
     testErrorPc = errorCount/size(testData,1);
-    fprintf(fileID, '\nError rate on test set is %d', testErrorPc);
+    %fprintf(fileID, '\nError rate on test set is %d', testErrorPc);
     
 
 

@@ -77,24 +77,18 @@ for randFeatureSetIter=1:size(randFeatureSetSizes, 1)
     end
 
     fprintf(fileID, '\n*************************************************\n');
-    fprintf(fileID, '\nSize. of Feature Set: %d\n', sizeFeatureSet);
-    %trainErrorPcs
-    fprintf(fileID, '\nTrain Errors: \n');
-    for iter=1:size(trainErrorPcs, 1)
-        fprintf(fileID, '%d\n', trainErrorPcs(iter));
+    fprintf(fileID, '\nSize of Feature Set: %d\n', sizeFeatureSet);
+    
+    %trainErrorPcs & test Error
+    fprintf(fileID, '\nTrain Errors\tTest Errors: \n');
+    for iter=1:numFolds
+        fprintf(fileID, '%d\t%d\n', trainErrorPcs(iter), testErrorPcs(iter));
     end
     
     meanTrainErr = mean(trainErrorPcs);
     stdTrainErr = std(trainErrorPcs);
-    fprintf(fileID, '\nMean train error is %d\n', meanTrainErr);
-    fprintf(fileID, '\nStandard deviation in train error is %d', stdTrainErr);
-    fprintf(fileID, '\n');
-    
-    %testErrorPcs
-    fprintf(fileID, '\nTest Errors: \n');
-    for iter=1:size(testErrorPcs, 1)
-        fprintf(fileID, '%d\n', testErrorPcs(iter));
-    end
+    fprintf(fileID, '\nMean train error is %d', meanTrainErr);
+    fprintf(fileID, '\nStandard deviation in train error is %d\n', stdTrainErr);
     
     meanTestErr = mean(testErrorPcs);
     stdTestErr = std(testErrorPcs);
@@ -109,6 +103,8 @@ end
 
 %set return value
 testError = randFeatureTestErrPcs;
+
+fprintf(fileID, '\n********* All mean train & test Errors *********\n');
 
 fprintf(fileID, '\nSize of Features\tTrainError\tTestError');
 for randFeatureSetIter=1:size(randFeatureSetSizes, 1)

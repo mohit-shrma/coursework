@@ -78,23 +78,17 @@ for numBaseIter=1:size(numBaseClassifiers, 1)
 
     fprintf(fileID, '\n*************************************************\n');
     fprintf(fileID, '\nNo. of Base Classifier: %d\n', numBaseClassifier);
-    %trainErrorPcs
-    fprintf(fileID, '\nTrain Errors: \n');
-    for iter=1:size(trainErrorPcs, 1)
-        fprintf(fileID, '%d\n', trainErrorPcs(iter));
+    
+    %trainErrorPcs & test Error
+    fprintf(fileID, '\nTrain Errors\tTest Errors: \n');
+    for iter=1:numFolds
+        fprintf(fileID, '%d\t%d\n', trainErrorPcs(iter), testErrorPcs(iter));
     end
     
     meanTrainErr = mean(trainErrorPcs);
     stdTrainErr = std(trainErrorPcs);
-    fprintf(fileID, '\nMean train error is %d\n', meanTrainErr);
-    fprintf(fileID, '\nStandard deviation in train error is %d', stdTrainErr);
-    fprintf(fileID, '\n');
-    
-    %testErrorPcs
-    fprintf(fileID, '\nTest Errors: \n');
-    for iter=1:size(testErrorPcs, 1)
-        fprintf(fileID, '%d\n', testErrorPcs(iter));
-    end
+    fprintf(fileID, '\nMean train error is %d', meanTrainErr);
+    fprintf(fileID, '\nStandard deviation in train error is %d\n', stdTrainErr);
     
     meanTestErr = mean(testErrorPcs);
     stdTestErr = std(testErrorPcs);
@@ -109,6 +103,8 @@ end
 
 %set return value
 testError = baseClassifierTrainErrPcs;
+
+fprintf(fileID, '\n********* All mean train & test Errors *********\n');
 
 fprintf(fileID, '\nNo. of Base Classifiers\tTrainError\tTestError');
 for numBaseIter=1:size(numBaseClassifiers, 1)
