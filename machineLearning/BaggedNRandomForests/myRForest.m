@@ -125,7 +125,7 @@ title(strcat(num2str(numLayers),'-layer Random Forests'));
 %plot FeatureSetSizes vs test errors
 %h = figure;
 hold on;
-plot(randFeatureSetSizes, randFeatureTestErrPcs), 'r';
+plot(randFeatureSetSizes, randFeatureTestErrPcs, 'r');
 %xlabel('Size of Features');
 %ylabel('Test Error');
 %title(strcat(num2str(numLayers),'-layer Random Forests'));
