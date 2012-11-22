@@ -116,7 +116,7 @@ end
 
 %plot FeatureSetSizes vs training errors 
 h = figure;
-errorbar(randFeatureSetSizes, randFeatureTrainErrPcs);
+plot(randFeatureSetSizes, randFeatureTrainErrPcs);
 xlabel('Size of Features');
 ylabel('Error');
 title(strcat(num2str(numLayers),'-layer Random Forests'));
@@ -125,7 +125,7 @@ title(strcat(num2str(numLayers),'-layer Random Forests'));
 %plot FeatureSetSizes vs test errors
 %h = figure;
 hold on;
-errorbar(randFeatureSetSizes, randFeatureTestErrPcs), 'r';
+plot(randFeatureSetSizes, randFeatureTestErrPcs), 'r';
 %xlabel('Size of Features');
 %ylabel('Test Error');
 %title(strcat(num2str(numLayers),'-layer Random Forests'));

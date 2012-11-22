@@ -116,7 +116,7 @@ end
 
 %plot base classifiers vs training errors 
 h = figure;
-errorbar(numBaseClassifiers, baseClassifierTrainErrPcs);
+plot(numBaseClassifiers, baseClassifierTrainErrPcs);
 xlabel('No. of base classifiers');
 ylabel('Error');
 title(strcat(num2str(numLayers),'-layer Bagging'));
@@ -125,7 +125,7 @@ title(strcat(num2str(numLayers),'-layer Bagging'));
 %plot base classifiers vs test errors
 %h = figure;
 hold on;
-errorbar(numBaseClassifiers, baseClassifierTestErrPcs, 'r');
+plot(numBaseClassifiers, baseClassifierTestErrPcs, 'r');
 %xlabel('No. of base classifiers');
 %ylabel('Error');
 %title(strcat(num2str(numLayers),'-layer Bagging'));
