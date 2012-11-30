@@ -29,8 +29,11 @@ A = eye(16);
 A = A.*-1;
 b = zeros(16,1);
 
-alpha = 1;
-rho = 0.5;
+%accelaerated admm parameter b/w 1 and 1.8
+alpha = 1.3;
+
+%penalty parameter > 0
+rho = 1;
 
 %run admm using linear programming from 'Stephen Boyd'
 [x, history] = admmLinProg(c, Aeq, beq, rho, alpha)
