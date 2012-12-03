@@ -1,4 +1,4 @@
-function [z, history] = linprog(c, A, b, rho, alpha)
+function [z, history] = admmLinProg(c, A, b, rho, alpha)
 % linprog  Solve standard form LP via ADMM
 %
 % [x, history] = linprog(c, A, b, rho, alpha);
@@ -48,11 +48,15 @@ if ~QUIET
       'r norm', 'eps pri', 's norm', 'eps dual', 'objective');
 end
 
-for k = 1:MAX_ITER
+sparseLeft = sparse([ rho*eye(n), A'; A, zeros(m) ]);
 
+for k = 1:MAX_ITER
+    
+    fprintf('x update');
     % x-update
     %tmp = [ rho*eye(n), A'; A, zeros(m) ] \ [ rho*(z - u) - c; b ];
-    tmp = pinv([ rho*eye(n), A'; A, zeros(m) ]) * [ rho*(z - u) - c; b ];
+    tmp = sparseLeft \ [ rho*(z - u) - c; b ];
+    %tmp = pinv([ rho*eye(n), A'; A, zeros(m) ]) * [ rho*(z - u) - c; b ];
     
     x = tmp(1:n);
 

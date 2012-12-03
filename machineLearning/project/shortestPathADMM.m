@@ -18,6 +18,9 @@ Aeq(4, 12) = -1;
 
 beq = [1 0 0 -1]';
 
+
+
+
 %initialize weights of flow edges
 c = zeros(16, 1);
 c(2) = 1;
@@ -30,11 +33,11 @@ A = A.*-1;
 b = zeros(16,1);
 
 %accelaerated admm parameter b/w 1 and 1.8
-alpha = 1.3;
+alpha = 1;
 
 %penalty parameter > 0
 rho = 1;
-
+Aeq = sparse(Aeq);
 %run admm using linear programming from 'Stephen Boyd'
 [x, history] = admmLinProg(c, Aeq, beq, rho, alpha)
 
