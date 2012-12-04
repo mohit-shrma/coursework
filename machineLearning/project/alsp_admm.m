@@ -16,7 +16,7 @@ end
 %Preparing the mapping for flow vector. Here each entry in the flow vector corresponds for to edge from the Adj mat.
 Edges = [];
 ecounter = 0;
-Edge_mapper = zeros(r, r);
+Edge_mapper = sparse(r, r);
 for i = 1:r
 	for j = 1:c
 		if adj_mat(i,j) > 0
@@ -42,7 +42,7 @@ for iter = 1: length(src_vec)
 		disp('Error in creating of Adj matrix. It is not square');	
 	end
 
-	A = zeros(r, ecounter);
+	A = sparse(r, ecounter);
 	for node = 1:r  
 		temp_cons = zeros(1,ecounter);
 		out_edges = Edge_mapper(node, Edge_mapper(node,:) ~= 0); 		 
@@ -71,7 +71,9 @@ for iter = 1: length(src_vec)
     %penalty parameter > 0
     rho = 1;
     
+    
     [z, history] = admmLinProg(w, A, b, rho, alpha)
+    
 end  
 
 end

@@ -29,7 +29,7 @@ t_start = tic;
 % Global constants and defaults
 
 QUIET    = 0;
-MAX_ITER = 1000;
+MAX_ITER = 10000;
 ABSTOL   = 1e-4;
 RELTOL   = 1e-2;
 
