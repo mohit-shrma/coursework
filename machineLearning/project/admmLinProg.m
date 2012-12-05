@@ -29,7 +29,7 @@ t_start = tic;
 % Global constants and defaults
 
 QUIET    = 0;
-MAX_ITER = 10000;
+MAX_ITER = 100;
 ABSTOL   = 1e-4;
 RELTOL   = 1e-2;
 
@@ -63,7 +63,7 @@ for k = 1:MAX_ITER
     % z-update with relaxation
     zold = z;
     x_hat = alpha*x + (1 - alpha)*zold;
-    z = pos(x_hat + u);
+    z = max(x_hat + u, 0); %pos(x_hat + u);
 
     u = u + (x_hat - z);
 

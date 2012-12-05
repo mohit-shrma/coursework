@@ -5,7 +5,7 @@ function []  = alsp_admm(adjFileName,src_vec,dt_vec,drange)
 % dt_vec is a vector containing the destinations (each first destination of a particular source in src_vec)
 % drange is a vector containing the range of destination for a particular destination is dt_vec
 % lambda is the start time interval.
-
+tic
 sparseAdjaMatrix = csvread(adjFileName);
 %TODO: remove below line after -ve remove for incoming edges
 sparseAdjaMatrix = sparseAdjaMatrix(sparseAdjaMatrix(:,3) > 0, :);
@@ -37,7 +37,11 @@ for edgeInd=1:size(sparseAdjaMatrix,1)
     cost(edgeInd) = currWt;
 end
 
+fprintf('completed preprocessing.... \n');
+toc
+
 for iter = 1: length(src_vec)
+	tic;
 	cur_source = src_vec(iter);
 	cur_dest  = zeros(drange, 1);
 	cur_dest(1) = dt_vec(iter);
@@ -45,7 +49,7 @@ for iter = 1: length(src_vec)
 	%Preparing the vector of desination nodes 
 	for k = 1:drange-1
 		cur_dest(k+1) = cur_dest(k) + 1; 	
-    end
+        end
     
 	b = zeros(numNodes,1);
 	b(cur_source) = 1;%length(cur_dest); 
@@ -61,9 +65,15 @@ for iter = 1: length(src_vec)
 
     %penalty parameter > 0
     rho = 1;
+
+    fprintf('before calling... admm\n');
+    toc
     
     tic;
     [z, history] = admmLinProg(w, A, b, rho, alpha)
+    z ~= 0
+    sum(z)
+    fprintf('completed an admm iteration....\n');
     toc
 end  
 
