@@ -1,4 +1,4 @@
-function []  = alsp_admm(adj_mat,src_vec,dt_vec,drange)
+function []  = alsp_admm(adjFileName,src_vec,dt_vec,drange)
 % Main function to solve the ALSP problem using the ADMM technique. This function inturn calls the ADMM solver to find the shortest path
 % adj_mat stores our dynamic graph as a Time Expanded Network
 % src_vec is a vector containing the sources (note these source are time expanded)
@@ -6,10 +6,12 @@ function []  = alsp_admm(adj_mat,src_vec,dt_vec,drange)
 % drange is a vector containing the range of destination for a particular destination is dt_vec
 % lambda is the start time interval.
 
-
+M = csvread(adjFileName);
+adj_mat = spconvert(M);
 if length(src_vec) ~= length(dt_vec)
 	disp('Error in the input. Source and Destination vectors dont match in length')
 end
+
 
 
 [r,c] = size(adj_mat);
