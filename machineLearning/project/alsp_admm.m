@@ -5,14 +5,15 @@ function []  = alsp_admm(adjFileName,src_vec,dt_vec,drange)
 % dt_vec is a vector containing the destinations (each first destination of a particular source in src_vec)
 % drange is a vector containing the range of destination for a particular destination is dt_vec
 % lambda is the start time interval.
-tic
+
+tic;
 sparseAdjaMatrix = csvread(adjFileName);
 %TODO: remove below line after -ve remove for incoming edges
 sparseAdjaMatrix = sparseAdjaMatrix(sparseAdjaMatrix(:,3) > 0, :);
 
-%M = [1 2 5; 1 3 1; 2 4 1; 3 4 1];
-%cur_source = 1;
-%cur_dest = 4;
+% sparseAdjaMatrix = [1 2 1; 1 3 3; 2 4 4; 3 4 1; 2 3 1];
+% src_vec = [1];
+% dt_vec = [4];
 
 if length(src_vec) ~= length(dt_vec)
 	disp('Error in the input. Source and Destination vectors dont match in length')
@@ -49,7 +50,7 @@ for iter = 1: length(src_vec)
 	%Preparing the vector of desination nodes 
 	for k = 1:drange-1
 		cur_dest(k+1) = cur_dest(k) + 1; 	
-        end
+    end
     
 	b = zeros(numNodes,1);
 	b(cur_source) = 1;%length(cur_dest); 
@@ -71,10 +72,14 @@ for iter = 1: length(src_vec)
     
     tic;
     [z, history] = admmLinProg(w, A, b, rho, alpha)
-    z ~= 0
-    sum(z)
     fprintf('completed an admm iteration....\n');
     toc
+    
+    %save non-zero flows in a file
+    computedEdgeFlows = [sparseAdjaMatrix(z>0, :) z(z>0)];
+    dlmwrite(strcat('edgeFlows_', num2str(iter), '.txt'), computedEdgeFlows)
+    
+    
 end  
 
 
