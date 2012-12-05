@@ -19,14 +19,14 @@ end
 Edges = [];
 ecounter = 0;
 Edge_mapper = sparse(r, r);
-for i = 1:r
-	for j = 1:c
-		if adj_mat(i,j) > 0
-			ecounter = ecounter + 1;
-			Edges = [Edges;[i,j]];
-			Edge_mapper(i,j) = ecounter;
-		end 
-	end
+[rowInd, colInd, val] = find(adj_mat);
+
+for iter = 1:length(val)
+    if val(iter) > 0
+        ecounter = ecounter + 1;
+        Edges = [Edges;[rowInd(iter),colInd(iter)]];
+        Edge_mapper(rowInd(iter), colInd(iter)) = ecounter;
+    end
 end
 
 for iter = 1: length(src_vec)
