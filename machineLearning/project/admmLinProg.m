@@ -48,7 +48,7 @@ if ~QUIET
       'r norm', 'eps pri', 's norm', 'eps dual', 'objective');
 end
 
-sparseLeft = sparse([ rho*eye(n), A'; A, zeros(m) ]);
+sparseLeft = sparse([ rho*speye(n), A'; A, sparse(m, m) ]);
 
 for k = 1:MAX_ITER
     

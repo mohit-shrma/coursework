@@ -62,9 +62,9 @@ for iter = 1: length(src_vec)
     %penalty parameter > 0
     rho = 1;
     
-    
+    tic;
     [z, history] = admmLinProg(w, A, b, rho, alpha)
-    
+    toc
 end  
 
 
