@@ -4,32 +4,43 @@ function []  = alsp_admm(adjFileName,src_vec,dt_vec,drange)
 % src_vec is a vector containing the sources (note these source are time expanded)
 % dt_vec is a vector containing the destinations (each first destination of a particular source in src_vec)
 % drange is a vector containing the range of destination for a particular destination is dt_vec
-% lambda is the start time interval.
+% e.g usage: alsp_admm('asd', [1],[50],[1])
+
+%open the file to wrte the output
+fid = fopen(strcat(adjFileName, '.out'), 'w');
 
 tic;
-sparseAdjaMatrix = csvread(adjFileName);
-%TODO: remove below line after -ve remove for incoming edges
-sparseAdjaMatrix = sparseAdjaMatrix(sparseAdjaMatrix(:,3) > 0, :);
 
+%load spTrustNw.mat
+%read the adjacency matrix
+sparseAdjaMatrix = csvread(adjFileName); %data_dump
+fprintf(fid, 'Adjacency matrix reading finished...\n');
+recordElapsedTime(fid);
+                             
 % sparseAdjaMatrix = [1 2 1; 1 3 3; 2 4 4; 3 4 1; 2 3 1];
 % src_vec = [1];
 % dt_vec = [4];
 
 if length(src_vec) ~= length(dt_vec)
-	disp('Error in the input. Source and Destination vectors dont match in length')
+    fprintf(fid, 'Error in the input. Source and Destination vectors dont match in length');
 end
 
-numNodes = max(max(sparseAdjaMatrix(:,1)),max(sparseAdjaMatrix(:,2)));
+tic
+
+%get the number of nodes
+numNodes = max(max(sparseAdjaMatrix(:,1)),max(sparseAdjaMatrix(:, 2)));
+
+%get the number of edges
 numEdges = size(sparseAdjaMatrix,1);
 
 %cost vec
 cost=zeros(numEdges, 1);
 
-%constraints matrix
+%constraints matrix initialize
 A=sparse(numNodes,numEdges);
 
+%build constraints matrix
 for edgeInd=1:size(sparseAdjaMatrix,1)
-    %TODO: remove curr wt check if in matrix, we remove the '-1' vals
     currWt = sparseAdjaMatrix(edgeInd, 3);
     fromNode = sparseAdjaMatrix(edgeInd, 1); 
     toNode = sparseAdjaMatrix(edgeInd, 2); 
@@ -38,26 +49,27 @@ for edgeInd=1:size(sparseAdjaMatrix,1)
     cost(edgeInd) = currWt;
 end
 
-fprintf('completed preprocessing.... \n');
-toc
+fprintf(fid,'completed preprocessing.... \n');
+recordElapsedTime(fid);
 
 for iter = 1: length(src_vec)
-	tic;
-	cur_source = src_vec(iter);
-	cur_dest  = zeros(drange, 1);
-	cur_dest(1) = dt_vec(iter);
-
-	%Preparing the vector of desination nodes 
-	for k = 1:drange-1
-		cur_dest(k+1) = cur_dest(k) + 1; 	
+    
+    tic;
+    cur_source = src_vec(iter);
+    cur_dest  = zeros(drange, 1);
+    cur_dest(1) = dt_vec(iter);
+    
+    %Preparing the vector of desination nodes 
+    for k = 1:drange-1
+        cur_dest(k+1) = cur_dest(k) + 1; 	
     end
     
-	b = zeros(numNodes,1);
-	b(cur_source) = 1;%length(cur_dest); 
-	b(cur_dest) = -1;
-	
-	%Calling ADMM module to find the flow
+    b = zeros(numNodes,1);
+    b(cur_source) = 1;%length(cur_dest); 
+    b(cur_dest) = -1;
     
+    %Calling ADMM module to find the flow
+        
     %initialize weights of flow edges
     w = cost;
     
@@ -67,20 +79,31 @@ for iter = 1: length(src_vec)
     %penalty parameter > 0
     rho = 1;
 
-    fprintf('before calling... admm\n');
-    toc
+    fprintf(fid,'before calling... admm\n');
+    recordElapsedTime(fid);
     
     tic;
-    [z, history] = admmLinProg(w, A, b, rho, alpha)
-    fprintf('completed an admm iteration....\n');
-    toc
+    [z, history] = admmLinProg(w, A, b, rho, alpha);
+    fprintf(fid,'completed an admm iteration....\n');
+    recordElapsedTime(fid);
     
-    %save non-zero flows in a file
-    computedEdgeFlows = [sparseAdjaMatrix(z>0, :) z(z>0)];
-    dlmwrite(strcat('edgeFlows_', num2str(iter), '.txt'), computedEdgeFlows)
+    %get number of iterations and final objective function value
+    numIterations = length(history.objval);
+    fprintf(fid, 'num of iterations: %d\n', numIterations);
+    fprintf(fid, 'final objective func val: %f\n',...
+           history.objval(numIterations));
     
+    %save non-zero flows in a file, saving flow greater than 10% 
+    computedEdgeFlows = [sparseAdjaMatrix(z>=0.1, :) z(z>0.1)];
+    
+    %save flow matrix to a file
+    dlmwrite(strcat('edgeFlows_', adjFileName), computedEdgeFlows, ...
+             'delimiter', '\t')
     
 end  
+fclose(fid);
 
 
-
+%record time since last tic into passes output file
+function [] =  recordElapsedTime(fid)
+fprintf(fid, 'Elapsed time is %f seconds,\n', toc);
