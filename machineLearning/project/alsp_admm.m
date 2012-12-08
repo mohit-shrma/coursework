@@ -12,6 +12,7 @@ fid = fopen(strcat(adjFileName, '.out'), 'w');
 tic;
 
 %load spTrustNw.mat
+
 %read the adjacency matrix
 sparseAdjaMatrix = csvread(adjFileName); %data_dump
 fprintf(fid, 'Adjacency matrix reading finished...\n');
@@ -64,6 +65,9 @@ for iter = 1: length(src_vec)
         cur_dest(k+1) = cur_dest(k) + 1; 	
     end
     
+    fprintf(fid, 'current source: %d\n', cur_source);
+    fprintf(fid, 'current dest: %d\n', cur_dest(1));
+
     b = zeros(numNodes,1);
     b(cur_source) = 1;%length(cur_dest); 
     b(cur_dest) = -1;
@@ -97,7 +101,7 @@ for iter = 1: length(src_vec)
     computedEdgeFlows = [sparseAdjaMatrix(z>=0.1, :) z(z>0.1)];
     
     %save flow matrix to a file
-    dlmwrite(strcat('edgeFlows_', adjFileName), computedEdgeFlows, ...
+    dlmwrite(strcat(adjFileName, '.edgeFlows'), computedEdgeFlows, ...
              'delimiter', '\t')
     
 end  
