@@ -1,4 +1,4 @@
-function []  = alsp_admm(adjFileName,src_vec,dt_vec,drange)
+function []  = alsp_admm(adjFilePath, src_vec, dt_vec,drange)
 % Main function to solve the ALSP problem using the ADMM technique. This function inturn calls the ADMM solver to find the shortest path
 % adj_mat stores our dynamic graph as a Time Expanded Network
 % src_vec is a vector containing the sources (note these source are time expanded)
@@ -6,6 +6,10 @@ function []  = alsp_admm(adjFileName,src_vec,dt_vec,drange)
 % drange is a vector containing the range of destination for a particular destination is dt_vec
 % e.g usage: alsp_admm('asd', [1],[50],[1])
 
+%get the file name from passed adjacency name								 
+splittedName = regexp(adjFilePath, '/', 'split');
+adjFileName = splittedName(len(splittedName));
+								 
 %open the file to wrte the output
 fid = fopen(strcat(adjFileName, '.out'), 'w');
 
@@ -13,8 +17,22 @@ tic;
 
 %load spTrustNw.mat
 
-%read the adjacency matrix
-sparseAdjaMatrix = csvread(adjFileName); %data_dump
+%check for already existence adjacency 'mat' file
+adjMatFile = strcat(adjFileName, '_adj', '.mat');
+adjMatExist = exist(adjMatFile, 'file');
+
+if adjMatExist == 0:
+    %adj mat file not found
+    %read the adjacency matrix
+    sparseAdjaMatrix = csvread(adjFilePath); %data_dump
+    sparseAdjaMatrix = sparseAdjaMatrix(sparseAdjaMatrix(:,3) > 0, :);
+    save(adjMatFile, 'sparseAdjaMatrix');
+else:
+    %load existing adjacency matrix
+    load(adjMatFile);
+end
+      
+
 fprintf(fid, 'Adjacency matrix reading finished...\n');
 recordElapsedTime(fid);
                              
@@ -30,9 +48,11 @@ tic
 
 %get the number of nodes
 numNodes = max(max(sparseAdjaMatrix(:,1)),max(sparseAdjaMatrix(:, 2)));
+fprintf(fid, 'Number of nodes: %d\n', numNodes);
 
 %get the number of edges
 numEdges = size(sparseAdjaMatrix,1);
+fprintf(fid, 'Number of edges: %d\n', numEdges);
 
 %cost vec
 cost=zeros(numEdges, 1);
@@ -40,14 +60,25 @@ cost=zeros(numEdges, 1);
 %constraints matrix initialize
 A=sparse(numNodes,numEdges);
 
-%build constraints matrix
-for edgeInd=1:size(sparseAdjaMatrix,1)
-    currWt = sparseAdjaMatrix(edgeInd, 3);
-    fromNode = sparseAdjaMatrix(edgeInd, 1); 
-    toNode = sparseAdjaMatrix(edgeInd, 2); 
-    A(fromNode, edgeInd) = 1;
-    A(toNode, edgeInd) =-1; 
-    cost(edgeInd) = currWt;
+%check for already existence adjacency 'mat' file
+adjConsFile = strcat(adjFileName, '_constraints', '.mat');
+adjConsExist = exist(adjConsFile, 'file');
+
+if adjConsExist == 0:
+  %constraints matrix dont exist
+  %build constraints matrix
+  for edgeInd=1:size(sparseAdjaMatrix,1)
+      currWt = sparseAdjaMatrix(edgeInd, 3);
+      fromNode = sparseAdjaMatrix(edgeInd, 1); 
+      toNode = sparseAdjaMatrix(edgeInd, 2); 
+      A(fromNode, edgeInd) = 1;
+      A(toNode, edgeInd) =-1; 
+      cost(edgeInd) = currWt;
+  end
+  save(adjConsFile, 'A', 'cost');
+else:
+   %load the existing constraint matrix
+   load adjConsFile;
 end
 
 fprintf(fid,'completed preprocessing.... \n');
@@ -101,7 +132,7 @@ for iter = 1: length(src_vec)
     computedEdgeFlows = [sparseAdjaMatrix(z>=0.1, :) z(z>0.1)];
     
     %save flow matrix to a file
-    dlmwrite(strcat(adjFileName, '.edgeFlows'), computedEdgeFlows, ...
+    dlmwrite(strcat(adjFileName, '_', num2str(cur_source), '_', num2str(cur_dest), '.edgeFlows'), computedEdgeFlows, ...
              'delimiter', '\t')
     
 end  
