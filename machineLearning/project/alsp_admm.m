@@ -1,4 +1,4 @@
-function []  = alsp_admm(adjFilePath, src_vec, dt_vec,drange)
+function []  = alsp_admm(adjFilePath, src_vec, dt_vec, drange)
 % Main function to solve the ALSP problem using the ADMM technique. This function inturn calls the ADMM solver to find the shortest path
 % adj_mat stores our dynamic graph as a Time Expanded Network
 % src_vec is a vector containing the sources (note these source are time expanded)
@@ -8,10 +8,11 @@ function []  = alsp_admm(adjFilePath, src_vec, dt_vec,drange)
 
 %get the file name from passed adjacency name								 
 splittedName = regexp(adjFilePath, '/', 'split');
-adjFileName = splittedName(len(splittedName));
-								 
+adjFileName = splittedName(length(splittedName));
+adjFileName = adjFileName{1};								 
 %open the file to wrte the output
-fid = fopen(strcat(adjFileName, '.out'), 'w');
+fid = fopen(strcat(adjFileName, num2str(src_vec(1)), '_', ...
+                        num2str(dt_vec(1)), '.out'), 'w');
 
 tic;
 
@@ -21,13 +22,13 @@ tic;
 adjMatFile = strcat(adjFileName, '_adj', '.mat');
 adjMatExist = exist(adjMatFile, 'file');
 
-if adjMatExist == 0:
+if adjMatExist == 0
     %adj mat file not found
     %read the adjacency matrix
     sparseAdjaMatrix = csvread(adjFilePath); %data_dump
     sparseAdjaMatrix = sparseAdjaMatrix(sparseAdjaMatrix(:,3) > 0, :);
     save(adjMatFile, 'sparseAdjaMatrix');
-else:
+else
     %load existing adjacency matrix
     load(adjMatFile);
 end
@@ -64,7 +65,7 @@ A=sparse(numNodes,numEdges);
 adjConsFile = strcat(adjFileName, '_constraints', '.mat');
 adjConsExist = exist(adjConsFile, 'file');
 
-if adjConsExist == 0:
+if adjConsExist == 0
   %constraints matrix dont exist
   %build constraints matrix
   for edgeInd=1:size(sparseAdjaMatrix,1)
@@ -76,9 +77,9 @@ if adjConsExist == 0:
       cost(edgeInd) = currWt;
   end
   save(adjConsFile, 'A', 'cost');
-else:
+else
    %load the existing constraint matrix
-   load adjConsFile;
+   load(adjConsFile);
 end
 
 fprintf(fid,'completed preprocessing.... \n');
