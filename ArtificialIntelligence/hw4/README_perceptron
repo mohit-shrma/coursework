@@ -1,0 +1,16 @@
+"""
+   CSci5512 Spring'12 Homework 4
+   login: sharm163@umn.edu
+   date: 4/30/2012
+   name: Mohit Sharma
+   id: 4465482
+   algorithm: perceptron
+"""
+
+Steps to run :
+1. make sure python2.7 (2.6 may also work) is installed on system with numpy library integrated. I tried it in gradlabs 'strongbad' mac  machine and it works perfectly.
+2. on shell run:
+      python2.7 perceptron.py
+
+This program uses perceptron algorithm to classify the data. It uses sigmoid function as hypothesis function and runs gradient descent algorithm to update the weights i.e theta or fitting parameters.
+It also calculates cost which can be uncommented in program for display.

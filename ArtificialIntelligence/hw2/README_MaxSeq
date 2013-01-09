@@ -1,0 +1,14 @@
+%{
+   CSci5512 Spring'12 Homework 2
+   login: sharm163@umn.edu
+   date: 3/4/2012
+   name: Mohit Sharma
+   id: 4465482
+   algorithm: MaxSeq
+%}
+
+Steps to run the program:
+1.) Make sure matlab is installed on machine, and it's under PATH of the system.
+2.) Run from shell matlab -nodisplay -r 'MaxSeq(<input evidence length>, [<evidence vector>])' e.g. matlab -nodisplay -r 'MaxSeq(10, [ 0 1 0 1 0 1 0 1 0 1])'.
+
+This program compute the maximum likely sequence given the evidence sequence.

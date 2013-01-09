@@ -1,0 +1,19 @@
+"""
+   CSci5512 Spring'12 Homework 4
+   login: sharm163@umn.edu
+   date: 4/30/2012
+   name: Mohit Sharma
+   id: 4465482
+   algorithm: dlist2
+"""
+
+Steps to run :
+1. make sure python2.7 (2.6 may also work) is installed on system. I tried it in gradlabs 'strongbad' mac  machine and it works perfectly.
+2. on shell run:
+      python dlist2.py
+       OR
+      python2.7 dlist2.py
+
+This program implements Decision list algorithm to classify the Data.
+It uses Example class in Example.py to store example attributes. Also uses Attribute class in Example.py to store possible values for an attribute. 
+It uses ListNode class in ListNode.py to define the node structure of a node in decision list.

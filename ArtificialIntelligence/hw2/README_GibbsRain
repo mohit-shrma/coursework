@@ -1,0 +1,18 @@
+%{
+   CSci5512 Spring'12 Homework 2
+   login: sharm163@umn.edu
+   date: 3/4/2012
+   name: Mohit Sharma
+   id: 4465482
+   algorithm: GibbsRain
+%}
+
+Steps to run the program:
+1.) Make sure matlab is installed on machine, and it's under PATH of the system.
+2.) Run from shell matlab -nodisplay -r 'GibbsRain(<num steps>)' e.g. matlab -nodisplay -r 'GibbsRain(1000)'.
+
+This program first compute p(C|R,S=T,W=T) and p(R|C,S=T,W=T) and then uses
+gibbs sampler to sample using subroutine 'GibbsSampler'. which takes
+cpt table for p(R|C,S=T,W=T) and p(C|R,S=T,W=T) and number of steps to sample
+as argument.
+After sampling then from the samples it computes p(R|S=T,W=T).

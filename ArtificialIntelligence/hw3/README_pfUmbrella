@@ -1,0 +1,14 @@
+%{
+   CSci5512 Spring'12 Homework 3
+   login: sharm163@umn.edu
+   date: 4/11/2012
+   name: Mohit Sharma
+   id: 4465482
+   algorithm: lwUmbrella
+%}
+
+Steps to run the program:
+1.) Make sure matlab is installed on machine, and it's under PATH of the system.
+2.) Run from shell matlab -nodisplay -r 'pfUmbrella(numSamples, numSteps, evidence)' e.g. matlab -nodisplay -r 'pfUmbrella(100, 10, [ 1 0 1 0 1 0 1 0 1 0])'.
+
+This program gives the probability estimates using particle filtering for the given number of samples, given number of steps and evidence sequence.
