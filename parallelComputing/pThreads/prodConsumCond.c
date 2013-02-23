@@ -22,8 +22,7 @@ int main(int argc, char **argv) {
   int* data = (int*) 0;
   pthread_t pThreads[MAX_THREADS];
   pthread_attr_t attr;
-
-
+  
   taskAvailable = 0;
   
   printf("Enter number of threads: ");
@@ -45,6 +44,7 @@ int main(int argc, char **argv) {
   //zero out the allocated mem
   memset(data, 0, numThreads * sizeof(int));
 
+
   //create producer/consumer threads
   for (i = 0; i < numThreads; i++) {
     if (i%2 == 0) {
@@ -61,10 +61,11 @@ int main(int argc, char **argv) {
     pthread_join(pThreads[i], NULL);
   }
 
-  printf("\nTasks finished count: %d", tasksFinished);
+  printf("\nTasks finished count: %d\n", tasksFinished);
   
   return 0;
 }
+
 
 
 //return non zero if all tasks finished
@@ -88,7 +89,7 @@ void* producer(void* producerThreadData) {
     //try to get the mutex lock
     pthread_mutex_lock(&taskQCondLock);
 
-    while (taskAvailable == 1) {
+    while (taskAvailable == 1 && !done()) {
       //if a task is available, check to see if queue is empty using
       //conditional var, if not empty then wait for signal
       pthread_cond_wait(&condQEmpty, &taskQCondLock);
@@ -96,13 +97,18 @@ void* producer(void* producerThreadData) {
     
     //insert task into queue
     //insertIntoQ()
-    if (!done()) {
-      taskAvailable = 1;
+    if (taskAvailable == 0 && !done()) { 
+      printf(" \n task inserted... \n");
+
     }
+
+    taskAvailable = 1;
     
     //signal consumer that queue is full
     pthread_cond_signal(&condQFull);
-
+    //broadcast to all threads waiting on conditional variable
+    //pthread_cond_broadcast(&condQFull);
+    
     //release the lock on mutex
     pthread_mutex_unlock(&taskQCondLock);
   }
@@ -116,21 +122,26 @@ void* consumer(void* consumerThreadData) {
   //while all taks are not finished
   while(!done()) {
     pthread_mutex_lock(&taskQCondLock);
-    while (taskAvailable == 0) {
-      //if task is not available, check if tak in Q using conditional
+    while (taskAvailable == 0 && !done()) {
+      //if task is not available, check if task in Q using conditional
       //var, if empty then wait for signal from producer
       pthread_cond_wait(&condQFull, &taskQCondLock);
     }
 
     //extract task from Q
-    if (!done()) {
+    if (taskAvailable > 0 && !done()) {
+      printf(" \n task consumed... \n");
       tasksFinished++;
-      taskAvailable = 0;
-    }
+
+    } 
+
+    taskAvailable = 0;
     
     //signal producer that Q is empty
-    pthrevad_cond_signal(&condQEmpty);
-
+    pthread_cond_signal(&condQEmpty);
+    //broadcast to all threads waiting on conditional variable
+    //pthread_cond_broadcast(&condQEmpty);
+    
     //release the lock on mutex
     pthread_mutex_unlock(&taskQCondLock);
 
