@@ -54,8 +54,11 @@ int main(int argc, char **argv) {
     //sum will store the no. of points falling in circle
     sum = 0;
     //printf("\nsample points per thread: %d", samplePointsPerThread);
-    //#pragma omp for
-    for (i = 0; i < samplePointsPerThread; i++) {
+    /*following pragma will split the following for loop across threads, 
+      loop index goes to total number of points not to num pointes per thread*/
+    #pragma omp for 
+    for (i = 0; i < samplePoints; i++) {
+    //for (i = 0; i < samplePointsPerThread; i++) { //comment for pragma and uncomment this
       //generate a random point or coordinate
       randX = (double) (rand_r(&seed));
       randY = (double) (rand_r(&seed));
