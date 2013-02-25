@@ -8,6 +8,7 @@ COPTIONS = -DLINUX -g -D_FILE_OFFSET_BITS=64 -std=c99 -Wall\
 STDLIBS = -lm
 
 CFLAGS = $(COPTIONS)  $(OPTFLAGS)
+#CFLAGS = $(COPTIONS)
 LIBS = $(STDLIBS)
 
 SOURCE = sd.c getopt.c cmdline.c util.c
