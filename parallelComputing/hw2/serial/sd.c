@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #ifndef NTHREADS
-#define NTHREADS 2
+#define NTHREADS 16
 #endif
 
 
@@ -89,7 +89,8 @@ char *strjoin(char *str1, char *str2) {
     temp2++;
     temp1++;
   }
-
+  *temp2 = '\0';
+  printf("\ncombined string: %s \n", combined);
   return combined;
 }
 
