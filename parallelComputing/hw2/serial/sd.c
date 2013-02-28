@@ -90,7 +90,7 @@ char *strjoin(char *str1, char *str2) {
     temp1++;
   }
   *temp2 = '\0';
-  printf("\ncombined string: %s \n", combined);
+  //printf("\ncombined string: %s \n", combined);
   return combined;
 }
 
@@ -204,11 +204,15 @@ void ComputeNeighbors(params_t *params)
   gk_csr_CompactColumns(mat);
 
   /* perform auxiliary normalizations/pre-computations based on similarity */
+  gk_startwctimer(params->timer_3);
   gk_csr_Normalize(mat, GK_CSR_ROW, 2);
-
+  gk_stopwctimer(params->timer_3);
+  
   /* create the inverted index */
+  gk_startwctimer(params->timer_4);
   gk_csr_CreateIndex(mat, GK_CSR_COL);
-
+  gk_stopwctimer(params->timer_4);
+  
   /* create the output file */
   fpout = (params->outfile ? gk_fopen(params->outfile, "w", "ComputeNeighbors: fpout") : NULL);
 
