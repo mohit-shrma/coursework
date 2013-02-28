@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #ifndef NTHREADS
-#define NTHREADS 16
+#define NTHREADS 8
 #endif
 
 
@@ -136,8 +136,7 @@ void *findSimilarDoc(void *data) {
   marker = gk_i32smalloc(mat->nrows, -1, "ComputeNeighbors: marker");
   cand   = gk_fkvmalloc(mat->nrows, "ComputeNeighbors: cand");
 
-    /* find the best neighbors for each query document */
-  gk_startwctimer(params->timer_2);
+  /* find the best neighbors for each query document */
   for (i=startDoc; i<=endDoc; i++) {
     if (params->verbosity > 0)
       printf("Working on query %7d\n", i);
@@ -156,7 +155,6 @@ void *findSimilarDoc(void *data) {
         fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
     }
   }
-  gk_stopwctimer(params->timer_2);
 
 
   /* cleanup and exit */
@@ -226,6 +224,7 @@ void ComputeNeighbors(params_t *params)
   prevWorkEnd = -1;
 
   //create threads
+  gk_startwctimer(params->timer_1);
   for (i=0; i < NTHREADS; i++) {
 
     //prepare data for thread i
@@ -252,8 +251,10 @@ void ComputeNeighbors(params_t *params)
   for (i=0; i < NTHREADS; i++) {
     pthread_join(p_threads[i], NULL);
   }
-
+  gk_stopwctimer(params->timer_1);
+  
   //combine the output files of thread and write in one file
+  gk_startwctimer(params->timer_2);
   if (params->outfile) {
     /* create the output file */
     fpout = (params->outfile ? gk_fopen(params->outfile, "w", "ComputeNeighbors: fpout") : NULL);
@@ -268,8 +269,8 @@ void ComputeNeighbors(params_t *params)
       }
       gk_fclose(tempF);
     }
-    
   }
+  gk_stopwctimer(params->timer_2);
 
 
   /* cleanup and exit */
