@@ -195,19 +195,18 @@ void ComputeNeighbors(params_t *params)
   pthread_attr_t attr;
   
   printf("Reading data for %s...\n", params->infstem);
-
-  mat = gk_csr_Read(params->infstem, GK_CSR_FMT_CSR, 1, 0);
-
-  printf("#docs: %d, #nnz: %d.\n", mat->nrows, mat->rowptr[mat->nrows]);
-  
   gk_startwctimer(params->timer_3);
+  mat = gk_csr_Read(params->infstem, GK_CSR_FMT_CSR, 1, 0);
+  gk_stopwctimer(params->timer_3);
+  printf("#docs: %d, #nnz: %d.\n", mat->nrows, mat->rowptr[mat->nrows]);
+ 
   /* compact the column-space of the matrices */
   gk_csr_CompactColumns(mat);
 
   /* perform auxiliary normalizations/pre-computations based on similarity */
 
   gk_csr_Normalize(mat, GK_CSR_ROW, 2);
-  gk_stopwctimer(params->timer_3);
+
   
   /* create the inverted index */
   gk_startwctimer(params->timer_4);
