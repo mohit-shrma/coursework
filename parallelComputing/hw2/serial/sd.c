@@ -93,7 +93,7 @@ void *findSimilarDoc(void *data) {
     
     /* find the best neighbors for the query document */
     if (params->verbosity > 0)
-      printf("Working on query %7d\n", i);
+      printf("Working on query %7d\n", queryDoc);
     
     /* find the neighbors of the ith document */ 
     nhits = gk_csr_GetSimilarRows(subMat, 
@@ -183,9 +183,8 @@ void ComputeNeighbors(params_t *params)
   hits   = gk_fkvmalloc(params->nnbrs*NTHREADS, "ComputeNeighbors: hits");
   
   /* create the inverted index */
-  gk_startwctimer(params->timer_4);
   gk_csr_CreateIndex(mat, GK_CSR_COL);
-  gk_stopwctimer(params->timer_4);
+
   
   /* create the output file */
   fpout = (params->outfile ? gk_fopen(params->outfile, "w",\
@@ -307,11 +306,6 @@ void ComputeNeighbors(params_t *params)
     workReady = 0;
     currentlyIdle = 0;
 
-    //reset the output container
-    for (j = 0; j < params->nnbrs*NTHREADS; j++) {
-      hits[j] = (gk_fkv_t *)NULL;
-    }
-    
     //process the thread outputs
     tempHitCount = 0;
     for (j = 0; j < NTHREADS; j++) {
@@ -333,13 +327,15 @@ void ComputeNeighbors(params_t *params)
       gk_fkvsortd(nsim, hits);
     }
     gk_stopwctimer(params->timer_3);
-      
+
+    gk_stopwctimer(params->timer_4);
     /* write the results in the file */
     if (fpout) {
       //fprintf(fpout, "%8d %8d\n", i, nsim);
       for (j=0; j<nsim; j++) 
         fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
     }
+    gk_stopwctimer(params->timer_4);
     
     //allow threads to finish
     pthread_mutex_lock(&lockCanFinish);
