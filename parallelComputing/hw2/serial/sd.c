@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #ifndef NTHREADS
-#define NTHREADS 8
+#define NTHREADS 2
 #endif
 
 
@@ -73,7 +73,7 @@ void *findSimilarDoc(void *data) {
   queryDoc = threadData->queryDoc; 
   while (1) {
 
-    //set thread as idle and signal to main thread, \
+    //set thread as idle and signal to main thread, 
     //all threads should be idle before starting
     pthread_mutex_lock(&lockCurrentlyIdle);
     currentlyIdle++;
@@ -165,9 +165,9 @@ void ComputeNeighbors(params_t *params)
   pthread_attr_t attr;
   
   printf("Reading data for %s...\n", params->infstem);
-  gk_startwctimer(params->timer_3);
+
   mat = gk_csr_Read(params->infstem, GK_CSR_FMT_CSR, 1, 0);
-  gk_stopwctimer(params->timer_3);
+
   printf("#docs: %d, #nnz: %d.\n", mat->nrows, mat->rowptr[mat->nrows]);
   
   //get the nonzero count
@@ -180,7 +180,7 @@ void ComputeNeighbors(params_t *params)
   gk_csr_Normalize(mat, GK_CSR_ROW, 2);
 
   /* allocate memory for the necessary working arrays */
-  hits   = gk_fkvmalloc(mat->nrows, "ComputeNeighbors: hits");
+  hits   = gk_fkvmalloc(params->nnbrs*NTHREADS, "ComputeNeighbors: hits");
   
   /* create the inverted index */
   gk_startwctimer(params->timer_4);
@@ -268,9 +268,10 @@ void ComputeNeighbors(params_t *params)
     pthread_create(&p_threads[i], &attr, findSimilarDoc, (void *) &threadData[i]);
   }
 
+
   //wait for threads to complete, and assign the next job
   for (i=0; i < mat->nrows; i++) {
-
+    gk_startwctimer(params->timer_2);
     //wait for all threads to be idle before giving them work
     pthread_mutex_lock(&lockCurrentlyIdle);
     while (currentlyIdle != NTHREADS) {
@@ -305,6 +306,11 @@ void ComputeNeighbors(params_t *params)
     //prevent them from starting again
     workReady = 0;
     currentlyIdle = 0;
+
+    //reset the output container
+    for (j = 0; j < params->nnbrs*NTHREADS; j++) {
+      hits[j] = (gk_fkv_t *)NULL;
+    }
     
     //process the thread outputs
     tempHitCount = 0;
@@ -313,20 +319,24 @@ void ComputeNeighbors(params_t *params)
 	hits[tempHitCount++] = threadData[j].hits[k];
       }
     }
+    gk_stopwctimer(params->timer_2);
     
+    gk_startwctimer(params->timer_3);
     //sort the hits
     if (params->nnbrs == -1 || params->nnbrs >= tempHitCount) {
       //all similarities required or 
       //similarity required > num of candidates remain after prunning
-      nsim = params->nnbrs;
+      nsim = tempHitCount;
     } else {
       nsim = gk_min(tempHitCount, params->nnbrs);
       gk_dfkvkselect(tempHitCount, nsim, hits);
       gk_fkvsortd(nsim, hits);
     }
-
+    gk_stopwctimer(params->timer_3);
+      
     /* write the results in the file */
     if (fpout) {
+      //fprintf(fpout, "%8d %8d\n", i, nsim);
       for (j=0; j<nsim; j++) 
         fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
     }
