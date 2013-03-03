@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #ifndef NTHREADS
-#define NTHREADS 8
+#define NTHREADS 2
 #endif
 
 
@@ -135,6 +135,36 @@ void *findSimilarDoc(void *data) {
 
 
 
+//from two sorted array will find top nsim values in linear time
+//finaltop hits is of size nsim, and after this function call will contain
+// top nsim of combined both hits1 and hits 2, return number of top values in final array
+int findTopKHits(gk_fkv_t *finalTopHits, int nsim, gk_fkv_t *hits1,\
+		  int countHit1, gk_fkv_t *hits2, int countHit2) {
+  int start1, start2, finalStart;
+  start1 = 0, start2 = 0, finalStart = 0;
+
+  while (start1 < countHit1 && start2 < countHit2 && finalStart < nsim) {
+    if (hits1[start1].key > hits2[start2].key) {
+      finalTopHits[finalStart++] = hits1[start1];
+      start1++;
+    } else {
+      finalTopHits[finalStart++] = hits2[start2];
+      start2++;
+    }
+  }
+
+  while (start1 < countHit1 && finalStart < nsim ) {
+    //hits2 exhausted
+    finalTopHits[finalStart++] = hits2[start1++];
+  }
+
+  while (start2 < countHit2 && finalStart < nsim ) {
+    //hits1 exhausted
+    finalTopHits[finalStart++] = hits2[start2++];
+  }
+
+  return finalStart;
+}
 
 
 
@@ -158,6 +188,8 @@ void ComputeNeighbors(params_t *params)
   int queryDoc;
   int tempHitCount;
   int nsim;
+
+  int numLastChunkRows;
   
   struct ThreadData threadData[NTHREADS];
   
@@ -305,17 +337,35 @@ void ComputeNeighbors(params_t *params)
     //prevent them from starting again
     workReady = 0;
     currentlyIdle = 0;
-
-    //process the thread outputs
-    tempHitCount = 0;
-    for (j = 0; j < NTHREADS; j++) {
-      for (k = 0; k < threadData[j].nhits; k++) {
-	hits[tempHitCount++] = threadData[j].hits[k];
-      }
-    }
     gk_stopwctimer(params->timer_2);
 
     gk_startwctimer(params->timer_3);
+
+    //process the thread outputs
+    tempHitCount = 0;
+    numLastChunkRows = 0;
+    for (j = 0; j < NTHREADS; j++) {
+      for (k = 0; k < threadData[j].nhits; k++) {
+	hits[tempHitCount] = threadData[j].hits[k];
+	hits[tempHitCount].val += numLastChunkRows;  
+	tempHitCount++;
+      }
+      numLastChunkRows += threadData[j].subMat->nrows;
+    }
+    
+    /*for (j = 1; j < NTHREADS; j++) {
+      tempHitCount = findTopKHits(hits, params->nnbrs, threadData[j].hits,\
+				  threadData[j].nhits, threadData[0].hits, \
+				  threadData[0].nhits);
+      //hits now contained the combined top k hits
+      //copy these to threadData[0] for next iteration
+      threadData[0].nhits = tempHitCount;
+      for (k = 0; k < tempHitCount; k++) {
+	threadData[0].hits[k] = hits[k];
+      }
+      }*/
+
+    
     //sort the hits
     if (params->nnbrs == -1 || params->nnbrs >= tempHitCount) {
       //all similarities required or 
@@ -326,13 +376,14 @@ void ComputeNeighbors(params_t *params)
       gk_dfkvkselect(tempHitCount, nsim, hits);
       gk_fkvsortd(nsim, hits);
     }
+    
     gk_stopwctimer(params->timer_3);
 
     gk_startwctimer(params->timer_4);
     /* write the results in the file */
     if (fpout) {
       //fprintf(fpout, "%8d %8d\n", i, nsim);
-      for (j=0; j<nsim; j++) 
+      for (j=0; j < tempHitCount; j++) 
         fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
     }
     gk_stopwctimer(params->timer_4);
