@@ -12,7 +12,7 @@
 #include <pthread.h>
 
 #ifndef NTHREADS
-#define NTHREADS 2
+#define NTHREADS 8
 #endif
 
 
@@ -267,17 +267,10 @@ void ComputeNeighbors(params_t *params)
     pthread_create(&p_threads[i], &attr, findSimilarDoc, (void *) &threadData[i]);
   }
 
-  gk_clearwctimer(params->timer_2);
-  gk_startwctimer(params->timer_2);
-
-  gk_clearwctimer(params->timer_4);
-  gk_startwctimer(params->timer_4);
-
-  gk_clearwctimer(params->timer_3);
-  gk_startwctimer(params->timer_3);
   
   //wait for threads to complete, and assign the next job
   for (i=0; i < mat->nrows; i++) {
+    gk_startwctimer(params->timer_2);
     //wait for all threads to be idle before giving them work
     pthread_mutex_lock(&lockCurrentlyIdle);
     while (currentlyIdle != NTHREADS) {
@@ -322,7 +315,7 @@ void ComputeNeighbors(params_t *params)
     }
     gk_stopwctimer(params->timer_2);
 
-
+    gk_startwctimer(params->timer_3);
     //sort the hits
     if (params->nnbrs == -1 || params->nnbrs >= tempHitCount) {
       //all similarities required or 
@@ -335,7 +328,7 @@ void ComputeNeighbors(params_t *params)
     }
     gk_stopwctimer(params->timer_3);
 
-
+    gk_startwctimer(params->timer_4);
     /* write the results in the file */
     if (fpout) {
       //fprintf(fpout, "%8d %8d\n", i, nsim);
