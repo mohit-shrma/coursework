@@ -16,93 +16,30 @@
 #endif
 
 
-//will convert the passed number to string
-char *toStr4mNum(int a) {
-  char *str1, *str2;
-  char *temp1, *temp2;
 
-  str1 = (char *) malloc(10);
-  str2 = (char *) malloc(10);
+pthread_cond_t condThreadDone, condWorkReady;
+pthread_mutex_t lockThreadDone, lockWorkReady;
+int threadsFinished;
+int workReady;
 
-  temp1 = str1;
+pthread_mutex_t lockCurrentlyIdle;
+pthread_cond_t condCurrentlyIdle;
+int currentlyIdle;
 
-  if (a != 0) {
-    while ( a != 0) {
-      *temp1++ = (char)((int)('0') + (a % 10));
-      a = a/10;
-    }
-  } else {
-    *temp1++ = '0';
-  }
-  
-  temp2 = str2;
-  temp1--;
-  while (temp1 != str1) {
-    *temp2++ = *temp1--;
-  }
-  
-  *temp2++ = *temp1;
-  *temp2 = '\0';
-  
-  return str2;
-}
+pthread_mutex_t lockCanFinish;
+pthread_cond_t condCanFinish;
+int canFinish;
 
-
-
-//append two strings and return the third
-char *strjoin(char *str1, char *str2) {
-  char *temp1;
-  char *temp2, *combined;
-  int totalSize;
-
-  //get combined size of strings
-  totalSize = 0;
-
-  temp1 = str1;
-  while (*temp1 != '\0') {
-    totalSize++;
-    temp1++;
-  }
-  
-  temp1 = str2;
-  while (*temp1 != '\0') {
-    totalSize++;
-    temp1++;
-  }
-
-  //allocate memory for combined string
-  combined = (char*) malloc(sizeof(char) * totalSize);
-
-  //copy string 1
-  temp1 = str1;
-  temp2 = combined;
-  while (*temp1 != '\0') {
-    *temp2 = *temp1;
-    temp2++;
-    temp1++;
-  }
-
-  //copy string2
-  temp1 = str2;
-  while (*temp1 != '\0') {
-    *temp2 = *temp1;
-    temp2++;
-    temp1++;
-  }
-  *temp2 = '\0';
-  //printf("\ncombined string: %s \n", combined);
-  return combined;
-}
 
 
 struct ThreadData {
-  int startDoc;
-  int endDoc;
-  params_t *params;
+  int queryDoc;
   gk_csr_t *mat;
-  char *outfile;
+  gk_csr_t *subMat;
+  gk_fkv_t *hits;
+  int nhits;
+  params_t *params;
 };
-
 
 
 void *findSimilarDoc(void *data) {
@@ -112,58 +49,91 @@ void *findSimilarDoc(void *data) {
   gk_fkv_t *hits, *cand;
   FILE *fpout;
   int numRowsToWork;
-  
-  //index or row number of matrix to work on
-  int startDoc, endDoc;
   params_t *params;
+    
+  //index or row number of matrix to work on
+  int queryDoc, prevQueryDoc;
   gk_csr_t *mat;
+  gk_csr_t *subMat;
   
   //get the data passed to the thread
   struct ThreadData *threadData = (struct ThreadData *) data;
-  startDoc = threadData->startDoc;
-  endDoc = threadData->endDoc;
-  params = threadData->params;
   mat = threadData->mat;
-
-  /* create the output file */
-  fpout = (threadData->outfile ? gk_fopen(threadData->outfile, "w", "ComputeNeighbors: fpout") : NULL);
-
-  //number of rows to work
-  numRowsToWork = endDoc - startDoc + 1;
+  subMat = threadData->subMat;
+  params = threadData->params;
 
   /* allocate memory for the necessary working arrays */
-  hits   = gk_fkvmalloc(mat->nrows, "ComputeNeighbors: hits");
-  marker = gk_i32smalloc(mat->nrows, -1, "ComputeNeighbors: marker");
-  cand   = gk_fkvmalloc(mat->nrows, "ComputeNeighbors: cand");
+  hits   = gk_fkvmalloc(subMat->nrows, "ComputeNeighbors: hits");
+  marker = gk_i32smalloc(subMat->nrows, -1, "ComputeNeighbors: marker");
+  cand   = gk_fkvmalloc(subMat->nrows, "ComputeNeighbors: cand");
 
-  /* find the best neighbors for each query document */
-  for (i=startDoc; i<=endDoc; i++) {
+  threadData->hits = hits;
+  
+  prevQueryDoc = -1;
+  queryDoc = threadData->queryDoc; 
+  while (1) {
+
+    //set thread as idle and signal to main thread, \
+    //all threads should be idle before starting
+    pthread_mutex_lock(&lockCurrentlyIdle);
+    currentlyIdle++;
+    pthread_cond_signal(&condCurrentlyIdle);
+    pthread_mutex_unlock(&lockCurrentlyIdle);
+	
+    //wait for restart signal from main thread for execution
+    pthread_mutex_lock(&lockWorkReady);
+    while (!workReady) {
+      //TODO: is prev query equal to curr query check necessary
+      pthread_cond_wait(&condWorkReady, &lockWorkReady);
+    }
+    pthread_mutex_unlock(&lockWorkReady);
+
+    //get the new query doc
+    queryDoc = threadData->queryDoc; 
+    
+    /* find the best neighbors for the query document */
     if (params->verbosity > 0)
       printf("Working on query %7d\n", i);
-
+    
     /* find the neighbors of the ith document */ 
-    nhits = gk_csr_GetSimilarRows(mat, 
-                 mat->rowptr[i+1]-mat->rowptr[i], 
-                 mat->rowind+mat->rowptr[i], 
-                 mat->rowval+mat->rowptr[i], 
-                 GK_CSR_COS, params->nnbrs, params->minsim, hits, 
-                 marker, cand);
+    nhits = gk_csr_GetSimilarRows(subMat, 
+				  mat->rowptr[queryDoc+1]-mat->rowptr[queryDoc], 
+				  mat->rowind+mat->rowptr[queryDoc], 
+				  mat->rowval+mat->rowptr[queryDoc], 
+				  GK_CSR_COS, params->nnbrs, params->minsim, hits, 
+				  marker, cand);
 
-    /* write the results in the file */
-    if (fpout) {
-      for (j=0; j<nhits; j++) 
-        fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
+    threadData->nhits = nhits;
+    
+    //enter the mutex and increment the threads finished counter
+    //get the mutex lock
+    pthread_mutex_lock(&lockThreadDone);
+
+    //increment the threads finished counter
+    threadsFinished++;
+
+    //signal the main thread
+    pthread_cond_signal(&condThreadDone);
+    
+    //release the mutex lock
+    pthread_mutex_unlock(&lockThreadDone);
+
+    // Wait for permission to finish
+    pthread_mutex_lock(&lockCanFinish);
+    while (!canFinish) {
+      pthread_cond_wait(&condCanFinish , &lockCanFinish);
     }
+    pthread_mutex_unlock(&lockCanFinish);
+    
+    prevQueryDoc = queryDoc;
   }
-
-
-  /* cleanup and exit */
-  if (fpout) gk_fclose(fpout);
-
+  
   gk_free((void **)&hits, &marker, &cand, LTERM);
   
   pthread_exit(0);
 }
+
+
 
 
 
@@ -173,21 +143,21 @@ void *findSimilarDoc(void *data) {
 /**************************************************************************/
 void ComputeNeighbors(params_t *params)
 {
-  int i;
+  int i, j, k;
   gk_csr_t *mat;
+  gk_fkv_t *hits;
   FILE *fpout;
 
-  //temporary file handle
-  FILE *tempF;
-  //to read stuff from file
-  int ch;
+  int nnzCount;
+  int nnzPerThread;
+  int remainingNNZ;
+  int prevRowUsed; 
+  int prevNNZCount;
+  int tempNNZCount;
 
-  int workPerThread;
-  int extraWork;
-  int prevWorkEnd; 
-
-  //used to create temporary files
-  char *temp; 
+  int queryDoc;
+  int tempHitCount;
+  int nsim;
   
   struct ThreadData threadData[NTHREADS];
   
@@ -199,14 +169,18 @@ void ComputeNeighbors(params_t *params)
   mat = gk_csr_Read(params->infstem, GK_CSR_FMT_CSR, 1, 0);
   gk_stopwctimer(params->timer_3);
   printf("#docs: %d, #nnz: %d.\n", mat->nrows, mat->rowptr[mat->nrows]);
- 
+  
+  //get the nonzero count
+  nnzCount = mat->rowptr[mat->nrows];
+    
   /* compact the column-space of the matrices */
   gk_csr_CompactColumns(mat);
 
   /* perform auxiliary normalizations/pre-computations based on similarity */
-
   gk_csr_Normalize(mat, GK_CSR_ROW, 2);
 
+  /* allocate memory for the necessary working arrays */
+  hits   = gk_fkvmalloc(mat->nrows, "ComputeNeighbors: hits");
   
   /* create the inverted index */
   gk_startwctimer(params->timer_4);
@@ -214,68 +188,159 @@ void ComputeNeighbors(params_t *params)
   gk_stopwctimer(params->timer_4);
   
   /* create the output file */
-  fpout = (params->outfile ? gk_fopen(params->outfile, "w", "ComputeNeighbors: fpout") : NULL);
+  fpout = (params->outfile ? gk_fopen(params->outfile, "w",\
+				      "ComputeNeighbors: fpout") : NULL);
 
   /* prepare threads */
   pthread_attr_init(&attr);
   pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 
-  //work per thread
-  workPerThread = mat->nrows / NTHREADS;
+  //initialize conditional variables
+  pthread_cond_init(&condThreadDone, NULL);
+  pthread_cond_init(&condWorkReady, NULL);
+  pthread_cond_init(&condCurrentlyIdle, NULL);
+  pthread_cond_init(&condCanFinish, NULL);
   
-  //extra work
-  extraWork = mat->nrows % NTHREADS;
-  prevWorkEnd = -1;
+  //initialize mutex
+  pthread_mutex_init(&lockThreadDone, NULL);
+  pthread_mutex_init(&lockWorkReady, NULL);
+  pthread_mutex_init(&lockCurrentlyIdle, NULL);
+  pthread_mutex_init(&lockCanFinish, NULL);
+  
+  //initialize initial conditional flags
+  currentlyIdle = 0;
+  workReady = 0;
+  canFinish = 0;
+  
+  //initialize initial queryDoc
+  queryDoc = 0;
+  
+  //divide the matrix based on nnz among threads
+  //work per thread
+  nnzPerThread = mat->rowptr[mat->nrows] / NTHREADS;
+    
+  prevRowUsed = -1;
 
   //create threads
   gk_startwctimer(params->timer_1);
   for (i=0; i < NTHREADS; i++) {
 
-    //prepare data for thread i
-    threadData[i].params = params;
-    threadData[i].mat = mat;
-    threadData[i].startDoc = prevWorkEnd + 1;
-    threadData[i].endDoc = prevWorkEnd + workPerThread;
-
-    if (extraWork > 0) {
-      threadData[i].endDoc += 1;
-      extraWork--;
+    if (prevRowUsed == -1) {
+      prevNNZCount = 0;
+    } else {
+      //prev row used represent the last row used in iteration
+      prevNNZCount = mat->rowptr[prevRowUsed + 1];
+    }
+    
+    //assign the suitable number of rows to the  thread
+    for (j = prevRowUsed + 1; j < mat->nrows; j++) {
+      tempNNZCount = mat->rowptr[j] - prevNNZCount;
+      if (tempNNZCount >= nnzPerThread) {
+	break;
+      }
     }
 
-    prevWorkEnd = threadData[i].endDoc;
-    
-    //create the output file for thread
-    temp = toStr4mNum(i);
-    threadData[i].outfile = (params->outfile ? strjoin(params->outfile, temp) : NULL); 
+    //decrement to get the right j that can fit
+    j--;
 
+    //prepare data for thread i
+    //assign the submatrix to work on
+    if (i == NTHREADS - 1) {
+      //last thread then assign all remaining rows
+      threadData[i].subMat = gk_csr_ExtractSubmatrix(mat, prevRowUsed + 1, \
+					      (mat->nrows - 1) - (prevRowUsed));
+    } else {
+      //extract the submatrix starting from prevRowUsed + 1 row till j-1 row	
+      //and [(j - 1) - prevRowUsed + 1)] rows 
+      threadData[i].subMat = gk_csr_ExtractSubmatrix(mat, prevRowUsed + 1, \
+						     j - (prevRowUsed));
+    }
+    
+    //create the inverted index
+    gk_csr_CreateIndex(threadData[i].subMat, GK_CSR_COL);
+    
+    threadData[i].mat = mat;
+    threadData[i].queryDoc = queryDoc;
+    threadData[i].params = params;
+    
+    prevRowUsed = j;
+    
     pthread_create(&p_threads[i], &attr, findSimilarDoc, (void *) &threadData[i]);
   }
 
-  //wait for threads to complete
-  for (i=0; i < NTHREADS; i++) {
-    pthread_join(p_threads[i], NULL);
+  //wait for threads to complete, and assign the next job
+  for (i=0; i < mat->nrows; i++) {
+
+    //wait for all threads to be idle before giving them work
+    pthread_mutex_lock(&lockCurrentlyIdle);
+    while (currentlyIdle != NTHREADS) {
+      pthread_cond_wait(&condCurrentlyIdle, &lockCurrentlyIdle);
+    }
+    pthread_mutex_unlock(&lockCurrentlyIdle);
+
+    //all threads are waiting for work, signal to start
+    //prevent them from finishing
+    canFinish = 0;
+        
+    //signal them to start working
+    //signal threads to start again
+    pthread_mutex_lock(&lockWorkReady);
+    //assign new queries to thread/jobs
+    for (j = 0; j < NTHREADS; j++) {
+      threadData[j].queryDoc = i;
+    }
+    threadsFinished = 0;
+    workReady = 1;
+    pthread_cond_broadcast(&condWorkReady);
+    pthread_mutex_unlock(&lockWorkReady); 
+    
+    //wait for all threads to complete
+    pthread_mutex_lock(&lockThreadDone);
+    while (threadsFinished < NTHREADS) {
+      pthread_cond_wait(&condThreadDone, &lockThreadDone);
+    }
+    pthread_mutex_unlock(&lockThreadDone);
+
+    //threads finished their job and are waiting for finish flag authorization
+    //prevent them from starting again
+    workReady = 0;
+    currentlyIdle = 0;
+    
+    //process the thread outputs
+    tempHitCount = 0;
+    for (j = 0; j < NTHREADS; j++) {
+      for (k = 0; k < threadData[j].nhits; k++) {
+	hits[tempHitCount++] = threadData[j].hits[k];
+      }
+    }
+    
+    //sort the hits
+    if (params->nnbrs == -1 || params->nnbrs >= tempHitCount) {
+      //all similarities required or 
+      //similarity required > num of candidates remain after prunning
+      nsim = params->nnbrs;
+    } else {
+      nsim = gk_min(tempHitCount, params->nnbrs);
+      gk_dfkvkselect(tempHitCount, nsim, hits);
+      gk_fkvsortd(nsim, hits);
+    }
+
+    /* write the results in the file */
+    if (fpout) {
+      for (j=0; j<nsim; j++) 
+        fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
+    }
+    
+    //allow threads to finish
+    pthread_mutex_lock(&lockCanFinish);
+    canFinish = 1;
+    pthread_cond_broadcast(&condCanFinish);
+    pthread_mutex_unlock(&lockCanFinish);
+   
   }
+  
   gk_stopwctimer(params->timer_1);
   
-  //combine the output files of thread and write in one file
-  gk_startwctimer(params->timer_2);
-  if (params->outfile) {
-    /* create the output file */
-    fpout = (params->outfile ? gk_fopen(params->outfile, "w", "ComputeNeighbors: fpout") : NULL);
-
-    for (i=0; i < NTHREADS; i++) {
-      //open the thread output
-      temp = toStr4mNum(i);
-      tempF = fopen(strjoin(params->outfile, temp), "r");
-      //copy the thread output to main output
-      while ((ch = getc(tempF)) != EOF) {
-	putc(ch, fpout);
-      }
-      gk_fclose(tempF);
-    }
-  }
-  gk_stopwctimer(params->timer_2);
-
 
   /* cleanup and exit */
   if (fpout) gk_fclose(fpout);
