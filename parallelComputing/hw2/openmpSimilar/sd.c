@@ -12,7 +12,7 @@
 #include <omp.h>
 
 #ifndef NTHREADS
-#define NTHREADS 2
+#define NTHREADS 8
 #endif
 
 
@@ -160,7 +160,9 @@ void ComputeNeighbors(params_t *params)
       }
       numLastChunkRows += threadData[j].subMat->nrows;
     }
-    
+
+
+    nsim = 0;
     //sort the hits
     if (params->nnbrs == -1 || params->nnbrs >= tempHitCount) {
       //all similarities required or 
@@ -178,7 +180,7 @@ void ComputeNeighbors(params_t *params)
     /* write the results in the file */
     if (fpout) {
       //fprintf(fpout, "%8d %8d\n", i, nsim);
-      for (j=0; j < tempHitCount; j++) 
+      for (j=0; j < nsim; j++) 
         fprintf(fpout, "%8d %8d %.3f\n", i, hits[j].val, hits[j].key);
     }
     gk_stopwctimer(params->timer_4);
