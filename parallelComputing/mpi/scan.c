@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <string.h>
 
 struct timeval tv;
 struct timeval tz;
@@ -182,13 +183,13 @@ int main(int argc, char *argv[]) {
  
  
   if (myRank == 0) {
-    printf("\n displaying input arrays:");
+    //printf("\n displaying input arrays:");
   }
 
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  displayArr(nums, numLines);
+  //displayArr(nums, numLines);
 
 
   //make sure every process reach this checkpoint
@@ -206,13 +207,13 @@ int main(int argc, char *argv[]) {
 
   if (myRank == 0) {
     printf("\nTime taken for mpi scan: %1f", endTime - startTime);
-    printf("\nDisplaying results of scan :");
+    //printf("\nDisplaying results of scan :");
   }
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
   
-  displayArr(res, numLines);
+  //displayArr(res, numLines);
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
@@ -229,15 +230,24 @@ int main(int argc, char *argv[]) {
 
   if (myRank == 0) {
     printf("\nTime taken for custom scan: %1f", endTime - startTime);
-    printf("\nDisplaying results of custom scan :");
+    //printf("\nDisplaying results of custom scan :");
   }
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  displayArr(resDup, numLines);
+  //displayArr(resDup, numLines);
 
   MPI_Finalize();
+  
+  //compare both results
+  i = memcmp(res, resDup, numLines*sizeof(int));
+  
+  if (i == 0) {
+    printf("\nrank: %d both results are same\n", myRank);
+  } else {
+    printf("\nrank: %d both results are not same\n", myRank);
+  }
 
   //free allocate memory
   free(nums);
