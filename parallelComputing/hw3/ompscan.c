@@ -8,6 +8,19 @@
 #include <math.h>
 
 
+
+struct timeval tv;
+struct timeval tz;
+
+double getTime() {
+  double currTime;
+  gettimeofday(&tv, &tz);
+  currTime = (double)tv.tv_sec + (double)tv.tv_usec/1000000.0;
+  return currTime;
+}
+
+
+
 //read the numbers from file and return the count of nnumbers
 int readNums(char *fileName, int **arr) {
   //to store number count
@@ -91,8 +104,8 @@ void OMP_Scan(int *arr, int arrLen, int numThreads) {
     }
   }
 
-  printf("\nAfter up sweep: ");
-  displayArr(arr, arrLen);
+  //printf("\nAfter up sweep: ");
+  //displayArr(arr, arrLen);
 
   //perform down-sweep on array
   arr[modArrLen - 1] = 0;
@@ -108,8 +121,8 @@ void OMP_Scan(int *arr, int arrLen, int numThreads) {
     }
   }
 
-  printf("\nAfter down sweep: ");
-  displayArr(arr, arrLen);
+  //printf("\nAfter down sweep: ");
+  //displayArr(arr, arrLen);
 }
 
 
@@ -137,6 +150,8 @@ int main(int argc, char *argv[]) {
   //number of threads
   int numThreads;
   
+  double endTime, startTime;
+
   if (argc < 3) {
     printf("Error: insufficient args.\n");
     exit(1);
@@ -153,12 +168,16 @@ int main(int argc, char *argv[]) {
   //read the numbers from i/p file
   numCount = readNums(ipFileName, &nums);
 
-  printf("\nOriginal array: ");
-  displayArr(nums, numCount);
+  //printf("\nOriginal array: ");
+  //displayArr(nums, numCount);
+
+  startTime = getTime();
   
   //apply the scan on i/p array
   OMP_Scan(nums, numCount, numThreads);
 
+  endTime = getTime();
+  printf("\nNum threads: %d Time taken: %1f\n", numThreads, endTime - startTime);
   if (opFileName) {
     //save the output
     writeOp(nums, numCount, opFileName);
