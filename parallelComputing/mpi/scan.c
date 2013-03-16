@@ -87,7 +87,6 @@ void displayArr(int *arr, int arrLen) {
       printf("\n");
     }
   }
-  fflush(stdout);
 }
 
 
@@ -214,7 +213,7 @@ int main(int argc, char *argv[]) {
   MPI_Barrier(MPI_COMM_WORLD);
   
   displayArr(res, numLines);
-
+  fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
    
