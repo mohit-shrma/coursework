@@ -79,6 +79,54 @@ void displayArr(int *arr, int arrLen) {
 }
 
 
+
+
+//implements custom mpi scan
+int myMPI_Scan(int *send, int *recv, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
+
+  unsigned int numProcs, myRank;
+  int tag, i;
+  MPI_Status status;
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  tag = myRank;
+
+
+  printf("From process %d out of %d, Hello custom scan!\n", myRank, numProcs);
+
+  if (myRank == 0) {
+    
+    if (numProcs > 1) {
+      //send to next rank
+      printf("\n %d sending to next %d ..", myRank, myRank+1);
+      MPI_Send(send, count, datatype, myRank + 1, tag, comm);
+    }   
+ 
+    //recv will be same as send
+    for (i = 0; i < count; i++) {
+      recv[i] = send[i];
+    }
+
+  } else {
+    //recv from the previous rank
+    printf("\n %d receiving from prev %d ..", myRank, myRank-1);
+    MPI_Recv(recv, count, datatype, myRank - 1, tag, comm, &status);
+    //add send to received 
+    for (i = 0; i < count; i++) {
+      recv[i] += send[i];
+    }
+    if (myRank < numProcs - 1) {
+      //send the new rev to next rank
+      printf("\n %d sending to next %d ..", myRank, myRank+1);
+      MPI_Send(recv, count, datatype, myRank + 1, tag, comm);
+    }
+  }
+
+  return 1;
+}
+
+
+
 int main(int argc, char *argv[]) {
   int numProcs, myRank;
   //store the array and length of array
@@ -86,8 +134,11 @@ int main(int argc, char *argv[]) {
   //input filename containing numbers
   char *fileName;
 
+  //buff to store array for second mpi op
+  int *numsDup;
+  
   //buff to store results
-  int *res;
+  int *res, *resDup;
   
   int i, j;
 
@@ -120,7 +171,7 @@ int main(int argc, char *argv[]) {
 
   //initialize results buffer
   res = (int *) malloc(sizeof(int) * numLines);
-
+  resDup = (int *) malloc(sizeof(int) * numLines);
 
   //perform inbuilt mpi scan
   MPI_Scan(nums, res, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -133,12 +184,31 @@ int main(int argc, char *argv[]) {
   }
   displayArr(res, numLines);
 
+  //make sure every process reach this checkpoint
+  MPI_Barrier(MPI_COMM_WORLD);
+   
+
+  //perform the custom scan
+  myMPI_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+  
+  //make sure every process reach this checkpoint
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (myRank == 0) {
+    printf("\n displaying results of custom scan :");
+  }
+  displayArr(resDup, numLines);
+
+    
+
   MPI_Finalize();
 
   //free allocate memory
   free(nums);
   free(res);
-  
+  free(resDup);
+
   return 0;
   
 }
