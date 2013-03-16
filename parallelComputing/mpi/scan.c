@@ -89,7 +89,7 @@ int myMPI_Scan(int *send, int *recv, int count, MPI_Datatype datatype, MPI_Op op
   MPI_Status status;
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-  tag = myRank;
+  tag = 100;
 
 
   printf("From process %d out of %d, Hello custom scan!\n", myRank, numProcs);
