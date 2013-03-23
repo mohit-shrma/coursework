@@ -102,6 +102,9 @@ void ompScan(int *arr, int arrLen, int numThreads) {
 
   assert(isPowerOf2(arrLen));
 
+  printf("\nBefore up-down sweep: ");
+  displayArr(arr, arrLen);
+
   //last element of array
   last = arr[arrLen - 1];
 
@@ -123,14 +126,17 @@ void ompScan(int *arr, int arrLen, int numThreads) {
 
   //perform down-sweep on array
   arr[arrLen - 1] = 0;
-  for (d = (int)log2(arrLen); d >= 0; d--) {
+  for (d = ((int)log2(arrLen) - 1); d >= 0; d--) {
     tempPow = (int)pow(2, d+1);
+    //printf("\nd:%d tempPow:%d", d, tempPow);
     //for the level propagate the reductions
 #pragma omp parallel for default(none)			\
   shared(arrLen, d, arr, tempPow) private(k, temp)	\
   num_threads(numThreads)
     for (k = 0; k < arrLen; k += tempPow) {
+      //printf("\nk:%d d:%d accessing: %d", k, d, k + (int)pow(2, d) - 1);
       temp = arr[k + (int)pow(2, d) - 1];
+      //printf("\nk:%d d:%d accessing: %d", k, d, k + tempPow - 1);
       arr[k + (int)(pow(2, d)) - 1] = arr[k + tempPow - 1];
       arr[k + tempPow - 1] += temp; 
     }
@@ -277,7 +283,7 @@ void performScan(int *arr, int arrLen, int numThreads) {
 
     //do scan of this array
     //serialScan(tempArr, tempArrLen);
-    OMP_Scan(tempArr, tempArrLen, numThreads);
+    ompScan(tempArr, tempArrLen, numThreads);
 
     //copy these values back to orig array
     memcpy(arr, tempArr, tempArrLen*sizeof(int));
@@ -291,7 +297,7 @@ void performScan(int *arr, int arrLen, int numThreads) {
 
     //apply scan on the temparray
     //serialScan(tempArr, tempArrLen);
-    OMP_Scan(tempArr, tempArrLen, numThreads);
+    ompScan(tempArr, tempArrLen, numThreads);
 
     //copy values back to temp array copying 
     //the last result of previous scan
