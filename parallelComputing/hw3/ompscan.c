@@ -387,15 +387,15 @@ void serialScan(int *arr, int arrLen) {
 
 //perform segmented scan on the passed array
 void performSScan(int *arr, int arrLen, int numThreads) {
-  int nearPow, i;
+  int nearPow, i, isFlagFound;
   int *tempArr, tempArrLen;
   int numExtraElem;
-  //int *flags, 
+  int *flags;
   int *tempFlags;
-  int flags[8] = {1, 0, 1, 0, 0, 0, 1, 1};
+  //int flags[9] = {1, 0, 1, 0, 0, 0, 1, 0, 1};
   //int flags[8] = {0, 1, 0, 0, 0, 0, 1, 0};
   //get segmented flags
-  //flags = createSegmentedFlags(arrLen);
+  flags = createSegmentedFlags(arrLen);
   printf("\nSegmented flags...");
   displayArr(flags, arrLen);
 
@@ -444,7 +444,16 @@ void performSScan(int *arr, int arrLen, int numThreads) {
     //copy values back to temp array copying 
     //the last result of previous scan
     for (i = 0; i < numExtraElem; i++) {
-      arr[i + tempArrLen] = tempArr[i] + arr[tempArrLen-1];
+      if (flags[i+tempArrLen]) {
+	isFlagFound = 1;
+      }
+      if (!isFlagFound) {
+	//add results from last segment until 1 is not found
+	arr[i + tempArrLen] = tempArr[i] + arr[tempArrLen-1];
+      } else {
+	//1 was found in flags, just copy values
+	arr[i + tempArrLen] = tempArr[i];
+      }
     }
     
     //free allocated mem for tempArr
