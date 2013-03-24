@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
+#include <math.h>
 
 struct timeval tv;
 struct timeval tz;
@@ -54,6 +55,7 @@ int readNums(char *fileName, int **nums) {
   return numLines;
 }
 
+
 //generate num count random numbers and fill in nums
 void fillWithRandom(int **nums, int numCount) {
   int i;
@@ -91,10 +93,202 @@ void displayArr(int *arr, int arrLen) {
 }
 
 
+void localScan(int *arr, int arrLen) {
+  int i;
+  for (i = 1; i < arrLen; i++) {
+    arr[i] = arr[i] + arr[i-1];
+  }
+}
 
+
+int isPowerOf2(int num) {
+  return num && !(num & (num-1));
+}
+
+
+
+/*
+ *Apply weep scan across all processor on send[i]'s 
+ */
+int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
+
+  unsigned int numProcs, myRank;
+  int send, recv;
+  int tag, temp;
+  int tempPow, i, d, k, last;
+  MPI_Status status;
+  
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  
+  tag = 100;
+  
+  /*printf("\n Number of procs: %d", numProcs);
+    printf("\n My rank: %d", myRank);*/
+  if (isPowerOf2(numProcs)) {
+    for (i = 0; i < count; i++) {
+      
+      if (myRank == numProcs -1) {
+	//save the last proc's element as this is going to be root
+	last = arr[i];
+      }
+      
+      if (myRank == 0) {
+	//printf("\nstarting up-sweep phase");
+      }
+
+      MPI_Barrier(comm);
+      //apply sweep across all procs on arr[i]
+      
+      
+
+      //up sweep phase
+      //perform up-sweep on the arr[i]'s
+      for(d = 0; d <= (int)log2(numProcs) - 1; d++) {
+	//for the current level get partial sums
+	tempPow = (int)pow(2, d+1);
+	for (k = 0; k < numProcs; k += tempPow) {
+	  //send from (k+(int)(pow(2, d))-1) to (k+tempPow-1)
+	  if (myRank == (k+(int)(pow(2, d))-1)) {
+	    //send to (k+tempPow-1)
+	    //printf("\nsend from %d to %d", (k+(int)(pow(2, d))-1), (k+tempPow-1));
+	    send = arr[i];
+	    MPI_Send(&send, 1, datatype, (k+tempPow-1), tag, comm);
+	  } else if (myRank == (k+tempPow-1)) {
+	    //receive from (k+(int)(pow(2, d))-1)
+	    //printf("\nreceive from %d to %d", (k+(int)(pow(2, d))-1), (k+tempPow-1));
+	    MPI_Recv(&recv, 1, datatype, (k+(int)(pow(2, d))-1), tag, comm,\
+		     &status);
+	    //add to arr[i]
+	    arr[i] += recv;
+	  }
+	}
+	//make sure all procs reach this stage
+	MPI_Barrier(comm);
+      }
+      
+      //make sure all procs reach this stage
+      MPI_Barrier(comm);
+
+
+      if (myRank == 0) {
+	//printf("\nstarting down-sweep phase");
+      }
+
+
+      //down sweep phase
+      //perform down-sweep on arr[i]'s
+      if (myRank == numProcs -1) {
+	//set value for root of tree or for last proc
+	arr[i] = 0;
+      }
+
+      for (d = (int)log2(numProcs) - 1; d >= 0; d--) {
+	tempPow = (int)pow(2, d+1);
+	//for the level propagate the reductions
+	for (k = 0; k < numProcs; k += tempPow) {
+	  
+	  if (myRank == (k+tempPow-1)) {
+	    //send from (k+tempPow-1) to (k+(int)pow(2, d)-1)
+	    send = arr[i];
+	    MPI_Send(&send, 1, datatype, (k+(int)pow(2, d)-1), tag, comm);
+
+	    //receive from (k+(int)pow(2, d)-1)
+	    MPI_Recv(&recv, 1, datatype, (k+(int)pow(2, d)-1), tag, comm,	\
+		     &status);
+
+	    //add recv to arr[i]
+	    arr[i] += recv;
+	    
+	  } else if (myRank == (k+(int)pow(2, d)-1)) {
+	    //receive from (k+tempPow-1)
+	    MPI_Recv(&recv, 1, datatype, (k+tempPow-1), tag, comm, \
+		     &status);
+	    
+	    //send from (k+(int)pow(2, d)-1) to (k+tempPow-1)
+	    send = arr[i];
+	    MPI_Send(&send, 1, datatype, (k+tempPow-1), tag, comm);
+
+	    //replace arr[i] with value received
+	    arr[i] = recv;
+	  }
+	}
+	//make sure all procs completed this iteration
+	MPI_Barrier(comm);
+      }
+
+      /*for (k = 0; k < numProcs; k++) {
+	if (myRank == k) {
+	  printf("\n B4 shift rank:%d val:%d", myRank, arr[i]);
+	}
+      }*/
+      
+      temp = arr[i];
+      //for inclusive scan need to shift arr[i]'s
+      for (k = numProcs -1; k >= 1; k--) {
+	//send from procs k to k - 1
+	if (myRank == k) {
+	  //send from k 
+	  send = temp;
+	  MPI_Send(&send, 1, datatype, k-1, tag, comm);
+	} else if (myRank == k-1) {
+	  //recv by k-1 
+	  MPI_Recv(&recv, 1, datatype, k, tag, comm, &status);
+	  //replace arr[i] with recv
+	  arr[i] = recv;
+	}
+      }
+
+      /*for (k = 0; k < numProcs; k++) {
+	if (myRank == k) {
+	  printf("\n Aftr shift rank:%d val:%d", myRank, arr[i]);
+	}
+	}*/
+
+      //make sure all procs at this stage
+      MPI_Barrier(comm);
+
+      //add last in orig array to last-1 elem
+      if (myRank == numProcs - 1) {
+	//last procs in the ranks
+	recv = 0;
+	if (numProcs > 1) { 
+	  //recv from numProcs-2
+	  MPI_Recv(&recv, 1, datatype, numProcs - 2, tag, comm,	\
+		   &status);
+	}
+	//add recv to orig last elem
+	arr[i] = recv + last;
+      } else if (myRank == numProcs - 2) {
+	//second last procs in ranks
+	//send to numProcs - 1
+	send = arr[i];
+	MPI_Send(&send, 1, datatype, numProcs  - 1, tag, comm);
+      }
+
+      /*for (k = 0; k < numProcs; k++) {
+	if (myRank == k) {
+	  printf("\n after last handle rank:%d val:%d", myRank, arr[i]);
+	}
+	}*/
+      
+      //ANOTHER ALTERNATIVE to shift
+      //gather all arr[i]'s at last proc
+      //shift arr 
+      //add last in orig array to last-1 elem
+      //scatter the arr across all proc
+
+    }
+  } else {
+  }
+  
+  return 1;
+}
+  
 
 //implements custom mpi scan
-int myMPI_Scan(int *send, int *recv, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
+int myMPI_Scan(int *send, int *recv, int count, MPI_Datatype datatype,\
+	       MPI_Op op, MPI_Comm comm) {
 
   unsigned int numProcs, myRank;
   int tag, i;
@@ -183,13 +377,13 @@ int main(int argc, char *argv[]) {
  
  
   if (myRank == 0) {
-    //printf("\n displaying input arrays:");
+    printf("\n displaying input arrays:");
   }
 
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //displayArr(nums, numLines);
+  displayArr(nums, numLines);
 
 
   //make sure every process reach this checkpoint
@@ -207,22 +401,25 @@ int main(int argc, char *argv[]) {
 
   if (myRank == 0) {
     printf("\nTime taken for mpi scan: %1f", endTime - startTime);
-    //printf("\nDisplaying results of scan :");
+    printf("\nDisplaying results of scan :");
   }
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
   
-  //displayArr(res, numLines);
+  displayArr(res, numLines);
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
-   
+
+  memcpy(resDup, nums, sizeof(int)*numLines);   
   startTime = getTime();
   //perform the custom scan
-  myMPI_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
+  //myMPI_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  //myMPI_Collective_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+  mySweepMPIScan(resDup, numLines, MPI_INT, MPI_COMM_WORLD);
   
+
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
@@ -230,14 +427,14 @@ int main(int argc, char *argv[]) {
 
   if (myRank == 0) {
     printf("\nTime taken for custom scan: %1f", endTime - startTime);
-    //printf("\nDisplaying results of custom scan :");
+    printf("\nDisplaying results of custom scan :");
   }
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //displayArr(resDup, numLines);
-
+  displayArr(resDup, numLines);
+  fflush(stdout);
   MPI_Finalize();
   
   //compare both results
