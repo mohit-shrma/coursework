@@ -148,13 +148,48 @@ int *createSegmentedFlags(int arrLen) {
 }
 
 
+
+//perform shift for segmented scan
+void segmentShift(int *arr, int *origArr, int *flags, int arrLen) {
+  int i;
+
+  for (i = 0; i < arrLen - 1; i++) {
+    if (flags[i+1] == 1) {
+      //end of current segment, pull out the last element of segment
+      arr[i] = arr[i] + origArr[i]; 
+    } else {
+      //shift the next to current pos
+      arr[i] = arr[i+1];
+    }
+  }
+
+
+  //last element is flagged, place last element of orig array
+  if (flags[arrLen - 1]) {
+    arr[arrLen - 1] = origArr[arrLen - 1];
+  } else {
+    arr[arrLen - 1] = origArr[arrLen - 1] + arr[arrLen - 2];
+  }
+
+}
+
+
 //implement serial version of scan using up and down sweep
 void ompSScan(int *arr, int arrLen, int *flags, int numThreads) {
   int d, k;
   int temp, tempPow;
   int last;
+  int *dupFlags, *dupArr;
 
   assert(isPowerOf2(arrLen));
+
+  //create copy of original flags
+  dupFlags = (int *) malloc(sizeof(int)*arrLen);
+  memcpy(dupFlags, flags, sizeof(int)*arrLen);
+
+  //create copy of original array
+  dupArr = (int *) malloc(sizeof(int)*arrLen);
+  memcpy(dupArr, arr, sizeof(int)*arrLen);
 
   printf("\nBefore up-down sweep: ");
   displayArr(arr, arrLen);
@@ -196,12 +231,12 @@ void ompSScan(int *arr, int arrLen, int *flags, int numThreads) {
   arr[arrLen - 1] = 0;
   for (d = ((int)log2(arrLen) - 1); d >= 0; d--) {
     tempPow = (int)pow(2, d+1);
-    /*
+    
     printf("\nd:%d tempPow:%d\n", d, tempPow);
     displayArr(arr, arrLen);
     printf("\n");
     displayArr(flags, arrLen);
-    */
+    
     //for the level propagate the reductions
 #pragma omp parallel for default(none)			\
   shared(arrLen, d, arr, tempPow, flags) private(k, temp)	\
@@ -212,7 +247,7 @@ void ompSScan(int *arr, int arrLen, int *flags, int numThreads) {
       //printf("\nk:%d d:%d set at: %d to at %d", k, d, k + (int)(pow(2, d)) - 1, k + tempPow - 1);
       arr[k + (int)(pow(2, d)) - 1] = arr[k + tempPow - 1];
       
-      if (flags[k + (int)pow(2, d)] ) {
+      if (flags[k + (int)pow(2, d)] && d) {
 	//printf("\nk:%d d:%d accessing and set 0: %d", k, d, k + tempPow - 1);
 	arr[k + tempPow - 1] = 0;
       } else if (flags[k + (int)pow(2, d) - 1]) {
@@ -234,10 +269,13 @@ void ompSScan(int *arr, int arrLen, int *flags, int numThreads) {
   printf("\n");
   displayArr(flags, arrLen);
   //do inclusive scan by shifting each element one index before
-  shift(arr, arrLen, last);
+  segmentShift(arr, dupArr, dupFlags, arrLen);
 
   printf("\nAfter shifting for inclusive scan: ");
   displayArr(arr, arrLen);
+
+  free(dupFlags);
+  free(dupArr);
 }
 
 
@@ -354,7 +392,7 @@ void performSScan(int *arr, int arrLen, int numThreads) {
   int numExtraElem;
   //int *flags, 
   int *tempFlags;
-  int flags[8] = {1, 0, 1, 0, 0, 0, 1, 0};
+  int flags[8] = {1, 0, 1, 0, 0, 0, 1, 1};
   //int flags[8] = {0, 1, 0, 0, 0, 0, 1, 0};
   //get segmented flags
   //flags = createSegmentedFlags(arrLen);
