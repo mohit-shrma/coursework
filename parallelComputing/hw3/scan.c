@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
+#include <math.h>
 #include <assert.h>
 
 struct timeval tv;
@@ -134,6 +135,10 @@ int myMPIScan(int *arr, int count) {
     nearPow = (int)log2(numProcs);
     tempNumProcs = pow(2, nearPow);
 
+    if (myRank == 0) {
+      printf("\n tempNumProcs: %d", tempNumProcs);
+    }
+
     //extract original group handle
     MPI_Comm_group(MPI_COMM_WORLD, &origGroup);
 
@@ -152,7 +157,7 @@ int myMPIScan(int *arr, int count) {
       MPI_Comm_create(MPI_COMM_WORLD, newGroup, &newComm);
       //get new rank
       MPI_Group_rank(newGroup, &newRank);
-      printf("\nOrig rank = %d New rank = %d", myRank, newRank);
+      printf("\n first grouping Orig rank = %d New rank = %d", myRank, newRank);
       
       //perform sweep mpi scan on this group
       //mySweepMPIScan(arr, count, MPI_INT, newComm);
@@ -198,6 +203,9 @@ int myMPIScan(int *arr, int count) {
       printf("\n");
     }
     
+
+    
+
     //form a new group to perform rest of scan
     if (myRank < procsNeeded || myRank >= tempNumProcs) {
       //form new group
@@ -208,7 +216,7 @@ int myMPIScan(int *arr, int count) {
 
       //get new rank
       MPI_Group_rank(newGroup, &newRank);
-      printf("\nOrig rank = %d New rank = %d", myRank, newRank);
+      printf("\nSecond grouping Orig rank = %d New rank = %d", myRank, newRank);
       
       //perform sweep mpi scan on this group
       //mySweepMPIScan(arr, count, MPI_INT, newComm);
@@ -217,12 +225,12 @@ int myMPIScan(int *arr, int count) {
     
     //make sure each procs reach this point
     MPI_Barrier(MPI_COMM_WORLD);
-
+    /*
     //restore values from dupArr to arr
     if (myRank < procsNeeded) {
       memcpy(arr, dupArr, sizeof(int)*count);
     }
-
+    
     //add the prefix scan result from tempNumProcs - 1 to remaining procs
     if (myRank == tempNumProcs - 1) {
       //send arr to all procs with rank >= tempNumProcs
@@ -245,7 +253,9 @@ int myMPIScan(int *arr, int count) {
       }
       
     }
+    */
 
+    printf("\nbefore free mem");
     if (dupArr) {
       free(dupArr);
     }
@@ -291,12 +301,6 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 
       if (myRank == 0) {
 	printf("\n\nstarting up-sweep phase");
-	for (k = 0; k < numProcs; k++) {
-	  if (myRank == k) {
-	    printf("\n B4 up sweep rank:%d ind:%d val:%d", myRank, i, arr[i]);
-	  }
-	}
-	printf("\n\n\n");
       }
 
       MPI_Barrier(comm);
@@ -377,11 +381,11 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	MPI_Barrier(comm);
       }
 
-      for (k = 0; k < numProcs; k++) {
+      /*for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n B4 shift rank:%d val:%d", myRank, arr[i]);
 	}
-      }
+	}*/
       
       temp = arr[i];
       //for inclusive scan need to shift arr[i]'s
@@ -399,11 +403,11 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	}
       }
 
-      for (k = 0; k < numProcs; k++) {
+      /*for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n Aftr shift rank:%d val:%d", myRank, arr[i]);
 	}
-	}
+	}*/
 
       //make sure all procs at this stage
       MPI_Barrier(comm);
@@ -426,11 +430,11 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	MPI_Send(&send, 1, datatype, numProcs  - 1, tag, comm);
       }
 
-      for (k = 0; k < numProcs; k++) {
+      /*for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n after last handle rank:%d val:%d", myRank, arr[i]);
 	}
-	}
+	}*/
       
       //ANOTHER ALTERNATIVE to shift
       //gather all arr[i]'s at last proc
@@ -577,8 +581,8 @@ int main(int argc, char *argv[]) {
   //perform the custom scan
   //myMPI_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   //myMPI_Collective_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-  mySweepMPIScan(resDup, numLines, MPI_INT, MPI_COMM_WORLD);
-  //myMPIScan(resDup, numLines);
+  //mySweepMPIScan(resDup, numLines, MPI_INT, MPI_COMM_WORLD);
+  myMPIScan(resDup, numLines);
 
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
