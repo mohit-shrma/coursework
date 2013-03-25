@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
-#include <math.h>
+#include <assert.h>
 
 struct timeval tv;
 struct timeval tz;
@@ -106,9 +106,159 @@ int isPowerOf2(int num) {
 }
 
 
+int myMPIScan(int *arr, int count) {
+
+  unsigned int numProcs, myRank, newRank;
+  int nearPow, tempNumProcs, procsNeeded;
+  int *grpRanks, *dupArr;
+  int i, tag, status;
+  int remProcRankStart;
+  int borrowRankstart;
+  
+  MPI_Group origGroup, newGroup;
+  MPI_Comm newComm;
+  
+  dupArr = (int*) 0;
+  tag = 100;
+  
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
+  if (isPowerOf2(numProcs)) {
+    printf("\n num of procs is power of 2");
+    mySweepMPIScan(arr, count, MPI_INT, MPI_COMM_WORLD);
+  } else {
+    //num of processes not power of 2 
+    //passed num procs not power of 2 
+    //get lower nearest power of 2
+    nearPow = (int)log2(numProcs);
+    tempNumProcs = pow(2, nearPow);
+
+    //extract original group handle
+    MPI_Comm_group(MPI_COMM_WORLD, &origGroup);
+
+    //create a group of near pow number of procs
+    grpRanks = (int*) malloc(sizeof(int)*tempNumProcs);
+    for (i = 0; i < tempNumProcs; i++) {
+      // add rank i to group
+      grpRanks[i] = i;
+    }
+
+    //TODO: make sure new ranks in same order as original rank
+    //add procs to groups
+    if (myRank <= tempNumProcs) {
+      MPI_Group_incl(origGroup, tempNumProcs, grpRanks, &newGroup);
+      //create a new communicator
+      MPI_Comm_create(MPI_COMM_WORLD, newGroup, &newComm);
+      //get new rank
+      MPI_Group_rank(newGroup, &newRank);
+      printf("\nOrig rank = %d New rank = %d", myRank, newRank);
+      
+      //perform sweep mpi scan on this group
+      //mySweepMPIScan(arr, count, MPI_INT, newComm);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //temp group finished sweep scan operations
+    
+    //need to perform scan on remaining procs
+    
+    //number of processors to borrow 
+    procsNeeded = numProcs - tempNumProcs;
+
+    
+    //dup the result for procs that will be borrowed
+    if (myRank < procsNeeded) {
+      dupArr = (int *)malloc(sizeof(int)*count);
+      memcpy(dupArr, arr, sizeof(int)*count);
+      //clear the array after storing result
+      //TODO: not necessay as not concerned with what goes here
+      memset(arr, 0, sizeof(int)*count);
+    }
+
+    
+    //form the new group with borrowed procs in end
+    remProcRankStart = tempNumProcs;
+    borrowRankstart = 0;
+    for (i = 0; i < tempNumProcs; i++) {
+      if (remProcRankStart < numProcs) {
+	grpRanks[i] = remProcRankStart++;
+      } else {
+	grpRanks[i] = borrowRankstart++;
+      }
+    }
+    
+
+    if (myRank == 0) {
+      printf("\n Group ranks including borrowed procs: \n");
+      for (i = 0; i < tempNumProcs; i++) {
+	printf(" %d", grpRanks[i]);
+      }
+      printf("\n");
+    }
+    
+    //form a new group to perform rest of scan
+    if (myRank < procsNeeded || myRank >= tempNumProcs) {
+      //form new group
+      MPI_Group_incl(origGroup, tempNumProcs, grpRanks, &newGroup);
+      
+      //create a new communicator
+      MPI_Comm_create(MPI_COMM_WORLD, newGroup, &newComm);
+
+      //get new rank
+      MPI_Group_rank(newGroup, &newRank);
+      printf("\nOrig rank = %d New rank = %d", myRank, newRank);
+      
+      //perform sweep mpi scan on this group
+      //mySweepMPIScan(arr, count, MPI_INT, newComm);
+      
+    }
+    
+    //make sure each procs reach this point
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //restore values from dupArr to arr
+    if (myRank < procsNeeded) {
+      memcpy(arr, dupArr, sizeof(int)*count);
+    }
+
+    //add the prefix scan result from tempNumProcs - 1 to remaining procs
+    if (myRank == tempNumProcs - 1) {
+      //send arr to all procs with rank >= tempNumProcs
+      //can use bcast here
+      for (i = tempNumProcs; i < numProcs; i++) {
+	MPI_Send(&arr, count, MPI_INT, i, tag, MPI_COMM_WORLD);
+      }
+    } else if (myRank >= tempNumProcs) {
+      if (!dupArr) {
+	dupArr = (int *)malloc(sizeof(int)*count);
+      }
+
+      //recv arr from proc tempNumProcs - 1 in dup arr
+      MPI_Recv(&dupArr, count, MPI_INT, tempNumProcs - 1, tag, MPI_COMM_WORLD,	\
+	       &status);
+
+      //add the results from received array
+      for (i = 0; i < count; i++) {
+	arr[i] += dupArr[i];
+      }
+      
+    }
+
+    if (dupArr) {
+      free(dupArr);
+    }
+    free(grpRanks);
+  }
+  
+  
+  return 1;
+}
+
 
 /*
- *Apply weep scan across all processor on send[i]'s 
+ *Apply sweep scan across all processor on send[i]'s 
  */
 int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 
@@ -118,13 +268,15 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
   int tempPow, i, d, k, last;
   MPI_Status status;
   
-  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
-  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  MPI_Comm_size(comm, &numProcs);
+  MPI_Comm_rank(comm, &myRank);
   
   tag = 100;
   
-  /*printf("\n Number of procs: %d", numProcs);
-    printf("\n My rank: %d", myRank);*/
+  assert(isPowerOf2(numProcs));
+
+  printf("\n Number of procs: %d", numProcs);
+  printf("\n My rank: %d", myRank);
   if (isPowerOf2(numProcs)) {
     for (i = 0; i < count; i++) {
       
@@ -133,14 +285,22 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	last = arr[i];
       }
       
+
+
+      MPI_Barrier(comm);
+
       if (myRank == 0) {
-	//printf("\nstarting up-sweep phase");
+	printf("\n\nstarting up-sweep phase");
+	for (k = 0; k < numProcs; k++) {
+	  if (myRank == k) {
+	    printf("\n B4 up sweep rank:%d ind:%d val:%d", myRank, i, arr[i]);
+	  }
+	}
+	printf("\n\n\n");
       }
 
       MPI_Barrier(comm);
       //apply sweep across all procs on arr[i]
-      
-      
 
       //up sweep phase
       //perform up-sweep on the arr[i]'s
@@ -172,7 +332,7 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 
 
       if (myRank == 0) {
-	//printf("\nstarting down-sweep phase");
+	printf("\nstarting down-sweep phase");
       }
 
 
@@ -217,11 +377,11 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	MPI_Barrier(comm);
       }
 
-      /*for (k = 0; k < numProcs; k++) {
+      for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n B4 shift rank:%d val:%d", myRank, arr[i]);
 	}
-      }*/
+      }
       
       temp = arr[i];
       //for inclusive scan need to shift arr[i]'s
@@ -239,11 +399,11 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	}
       }
 
-      /*for (k = 0; k < numProcs; k++) {
+      for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n Aftr shift rank:%d val:%d", myRank, arr[i]);
 	}
-	}*/
+	}
 
       //make sure all procs at this stage
       MPI_Barrier(comm);
@@ -266,11 +426,11 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	MPI_Send(&send, 1, datatype, numProcs  - 1, tag, comm);
       }
 
-      /*for (k = 0; k < numProcs; k++) {
+      for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n after last handle rank:%d val:%d", myRank, arr[i]);
 	}
-	}*/
+	}
       
       //ANOTHER ALTERNATIVE to shift
       //gather all arr[i]'s at last proc
@@ -287,7 +447,7 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
   
 
 //implements custom mpi scan
-int myMPI_Scan(int *send, int *recv, int count, MPI_Datatype datatype,\
+int mySimpleMPScan(int *send, int *recv, int count, MPI_Datatype datatype,\
 	       MPI_Op op, MPI_Comm comm) {
 
   unsigned int numProcs, myRank;
@@ -418,7 +578,7 @@ int main(int argc, char *argv[]) {
   //myMPI_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   //myMPI_Collective_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
   mySweepMPIScan(resDup, numLines, MPI_INT, MPI_COMM_WORLD);
-  
+  //myMPIScan(resDup, numLines);
 
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
