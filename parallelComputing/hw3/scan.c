@@ -1,7 +1,6 @@
 /*
  * this program will implement mpi scan 
  */
-
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +8,8 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+
+#define CHUNK_SZ 1000
 
 struct timeval tv;
 struct timeval tz;
@@ -125,7 +126,7 @@ int myMPIScan(int *arr, int count) {
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
   if (isPowerOf2(numProcs)) {
-    printf("\n num of procs is power of 2");
+    //printf("\n num of procs is power of 2");
     mySweepMPIScan(arr, count, MPI_INT, MPI_COMM_WORLD);
   } else {
     //num of processes not power of 2 
@@ -276,7 +277,12 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
   int send, recv;
   int tag, temp;
   int tempPow, i, d, k, last;
+  int *chunk;
+
   MPI_Status status;
+
+
+
   
   MPI_Comm_size(comm, &numProcs);
   MPI_Comm_rank(comm, &myRank);
@@ -300,7 +306,7 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
       MPI_Barrier(comm);
 
       if (myRank == 0) {
-	printf("\n\nstarting up-sweep phase");
+	//printf("\n\nstarting up-sweep phase");
       }
 
       MPI_Barrier(comm);
@@ -336,7 +342,7 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 
 
       if (myRank == 0) {
-	printf("\nstarting down-sweep phase");
+	//printf("\nstarting down-sweep phase");
       }
 
 
@@ -541,13 +547,13 @@ int main(int argc, char *argv[]) {
  
  
   if (myRank == 0) {
-    printf("\n displaying input arrays:");
+    //printf("\n displaying input arrays:");
   }
 
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  displayArr(nums, numLines);
+  //displayArr(nums, numLines);
 
 
   //make sure every process reach this checkpoint
@@ -565,13 +571,13 @@ int main(int argc, char *argv[]) {
 
   if (myRank == 0) {
     printf("\nTime taken for mpi scan: %1f", endTime - startTime);
-    printf("\nDisplaying results of scan :");
+    //printf("\nDisplaying results of scan :");
   }
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
   
-  displayArr(res, numLines);
+  //displayArr(res, numLines);
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
@@ -591,13 +597,13 @@ int main(int argc, char *argv[]) {
 
   if (myRank == 0) {
     printf("\nTime taken for custom scan: %1f", endTime - startTime);
-    printf("\nDisplaying results of custom scan :");
+    //printf("\nDisplaying results of custom scan :");
   }
   fflush(stdout);
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  displayArr(resDup, numLines);
+  //odisplayArr(resDup, numLines);
   fflush(stdout);
   MPI_Finalize();
   
