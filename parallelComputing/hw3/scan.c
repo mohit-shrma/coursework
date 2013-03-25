@@ -111,15 +111,11 @@ int myMPIScan(int *arr, int count) {
 
   unsigned int numProcs, myRank, newRank;
   int nearPow, tempNumProcs, procsNeeded;
-  int *grpRanks, *dupArr;
+  int  *dupArr;
   int i, j, tag, status;
-  int remProcRankStart;
-  int borrowRankstart;
   
-  MPI_Group origGroup, newGroup;
   MPI_Comm newComm;
   
-  int *grpRanks1, *grpRanks2;
   int color, key;
 
   dupArr = (int*) 0;
@@ -138,41 +134,21 @@ int myMPIScan(int *arr, int count) {
     nearPow = (int)log2(numProcs);
     tempNumProcs = pow(2, nearPow);
 
-    printf("\n myRank:%d  tempNumProcs: %d", myRank, tempNumProcs);
+    //printf("\n myRank:%d  tempNumProcs: %d", myRank, tempNumProcs);
 
-
-    //extract original group handle
-    MPI_Comm_group(MPI_COMM_WORLD, &origGroup);
-
-    //create a group of near pow number of procs
-    grpRanks = (int*) malloc(sizeof(int)*tempNumProcs);
-    grpRanks1 = (int*) malloc(sizeof(int)*tempNumProcs);
-    grpRanks2 = (int*) malloc(sizeof(int)*(numProcs-tempNumProcs));
-    for (i = 0, j=0; i < numProcs; i++) {
-      if (i < tempNumProcs) {
-	// add rank i to group
-	grpRanks1[i] = i;
-	printf("\n myrank: %d added: %d", myRank, i);
-      } else {
-	grpRanks2[j++] = i;
-      }
-    }
-
-    //TODO: make sure new ranks in same order as original rank
-    //add procs to groups
+    //split communicator for first tempNumProcs procs
     if (myRank < tempNumProcs) {
-      MPI_Group_incl(origGroup, tempNumProcs, grpRanks1, &newGroup);
+      color = 1;
+      key = myRank;
     } else {
-      MPI_Group_incl(origGroup, numProcs - tempNumProcs, grpRanks2, &newGroup);
+      color = 0;
+      key = myRank;
     }
 
-    //create a new communicator
-    MPI_Comm_create(MPI_COMM_WORLD, newGroup, &newComm);
-    //get new rank
-    MPI_Group_rank(newGroup, &newRank);
-    printf("\n first grouping Orig rank = %d New rank = %d", myRank, newRank);
-
-    if (myRank < tempNumProcs) {
+    MPI_Comm_split(MPI_COMM_WORLD, color, key, &newComm);
+    
+    //perform scan on first group
+    if (color == 1) {
       //perform sweep mpi scan on this group
       mySweepMPIScan(arr, count, MPI_INT, newComm);
     }
@@ -184,10 +160,10 @@ int myMPIScan(int *arr, int count) {
     //need to perform scan on remaining procs
     
     //number of processors to borrow 
-    procsNeeded = numProcs - tempNumProcs;
-
+    procsNeeded = tempNumProcs - ( numProcs - tempNumProcs) ;
     
     //dup the result for procs that will be borrowed
+    //procs with rank < procsNeeded will be borrowed
     if (myRank < procsNeeded) {
       dupArr = (int *)malloc(sizeof(int)*count);
       memcpy(dupArr, arr, sizeof(int)*count);
@@ -195,24 +171,15 @@ int myMPIScan(int *arr, int count) {
       //TODO: not necessay as not concerned with what goes here
       memset(arr, 0, sizeof(int)*count);
     }
+    
 
-    /*
-    //form the new group with borrowed procs in end
-    remProcRankStart = tempNumProcs;
-    borrowRankstart = 0;
-    for (i = 0; i < tempNumProcs; i++) {
-      if (remProcRankStart < numProcs) {
-	grpRanks1[i] = remProcRankStart++;
-      } else {
-	grpRanks1[i] = borrowRankstart++;
-      }
-    }*/
-  
-
+    //printf("\nnumProcs:%d tempNumProcs:%d procsNeeded:%d", numProcs, tempNumProcs, procsNeeded);
+    
     if (myRank < procsNeeded || myRank >= tempNumProcs) {
+      //assign group to borrowed rocs and unused procs
       color = 1;
       if (myRank < procsNeeded) {
-	//increase key to put at end
+	//increase key to put at end the already used procs
 	key = myRank + numProcs;
       } else {
 	key = myRank;
@@ -221,61 +188,80 @@ int myMPIScan(int *arr, int count) {
       color = 0;
       key = myRank;
     }
-    
+
+    //printf("\n sec scan myRank: %d color:%d", myRank, color);
+
+
     MPI_Comm_split(MPI_COMM_WORLD, color, key, &newComm);
   
     if (color == 1) {
       //perform sweep mpi scan on this group
       mySweepMPIScan(arr, count, MPI_INT, newComm);
+      
     }
-
     
     
     //restore values from dupArr to arr
     if (myRank < procsNeeded) {
       memcpy(arr, dupArr, sizeof(int)*count);
-      printf("\nrank:%d arr[0]:%d", myRank, arr[0]);
+      memset(dupArr, 0, sizeof(int)*count);
+      //printf("\nrank:%d arr[0]:%d", myRank, arr[0]);
     }
 
     //make sure each procs reach this point
     MPI_Barrier(MPI_COMM_WORLD);
 
-    
-    //add the prefix scan result from tempNumProcs - 1 to remaining procs
-    if (myRank == tempNumProcs - 1) {
-      //send arr to all procs with rank >= tempNumProcs
-      //can use bcast here
-      for (i = tempNumProcs; i < numProcs; i++) {
-	printf("\n send from %d to %d: %d", myRank, i, arr[0]);
-	MPI_Send(arr, count, MPI_INT, i, tag, MPI_COMM_WORLD);
-      }
-    } else if (myRank >= tempNumProcs) {
+    //broadcast the last procs in prev scan to all others in new scan
+    //form a group for broadcast
+    if (myRank >= tempNumProcs - 1) {
+      color = 1;
+      key = myRank;
+      //initialize dupArr for broadcast if null
       if (!dupArr) {
-
 	dupArr = (int *)malloc(sizeof(int)*count);
-
+	memset(dupArr, 0, sizeof(int)*count);
       }
-      printf("\n recv from %d at %d of size=%d", tempNumProcs - 1, myRank, count);
+    } else {
+      color = 0;
+      key = myRank;
+    }
 
-      //recv arr from proc tempNumProcs - 1 in dup arr
-      MPI_Recv(dupArr, count, MPI_INT, tempNumProcs - 1, tag, MPI_COMM_WORLD,	\
-	       &status);
-      //add the results from received array
+    //printf("\n bcast myRank: %d color:%d", myRank, color);
+    
+    //split the communicator into different groups
+    MPI_Comm_split(MPI_COMM_WORLD, color, key, &newComm);
+    
+    if (myRank == tempNumProcs -1) {
+      //last proc of previous scan
+      memcpy(dupArr, arr, sizeof(int)*count);
+    }
+
+    if (color == 1) {
+      //broadcast arr of last proc from previous scan
+      MPI_Bcast(dupArr, count, MPI_INT, 0, newComm);      
+    }
+
+    //make sure each procs reach this point
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //add value broadcasted from last proc of previous scan to arr
+    if (myRank >= tempNumProcs) {
+      
       for (i = 0; i < count; i++) {
-	arr[i];
-	//arr[i] += dupArr[i];
+	//printf("\nmyRank: %d arr[%d]=%d dupArr[%d]=%d", myRank, i, arr[i], i, dupArr[i]);
+	arr[i] += dupArr[i];
       }
-      fflush(stdout);
     }
     
 
-    printf("\nbefore free mem");
-    if (dupArr) {
-      free(dupArr);
-    }
-    free(grpRanks);
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
   
+  //printf("\nbefore free mem");
+  if (dupArr != (int *)0) {
+    free(dupArr);
+  }
   
   return 1;
 }
@@ -299,8 +285,8 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
   
   assert(isPowerOf2(numProcs));
 
-  printf("\n Number of procs: %d", numProcs);
-  printf("\n My rank: %d", myRank);
+  //printf("\n Number of procs: %d", numProcs);
+  //printf("\n My rank: %d", myRank);
   if (isPowerOf2(numProcs)) {
     for (i = 0; i < count; i++) {
       
