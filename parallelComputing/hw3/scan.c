@@ -9,7 +9,7 @@
 #include <math.h>
 #include <assert.h>
 
-#define CHUNK_SZ 1000
+#define CHUNKSIZE 1000
 
 struct timeval tv;
 struct timeval tz;
@@ -276,13 +276,12 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
   unsigned int numProcs, myRank;
   int send, recv;
   int tag, temp;
-  int tempPow, i, d, k, last;
-  int *chunk;
-
+  int tempPow, i, j, d, k, last;
+  int *chunk, chunkSize;
+  int *lastChunk, *recvChunk, *tempChunk;
   MPI_Status status;
 
-
-
+  chunk = lastChunk = recvChunk = tempChunk = (int *) 0;
   
   MPI_Comm_size(comm, &numProcs);
   MPI_Comm_rank(comm, &myRank);
@@ -294,14 +293,31 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
   //printf("\n Number of procs: %d", numProcs);
   //printf("\n My rank: %d", myRank);
   if (isPowerOf2(numProcs)) {
-    for (i = 0; i < count; i++) {
-      
+
+    chunkSize = count < CHUNKSIZE?count:CHUNKSIZE;
+    chunk = (int *)malloc(sizeof(int)*chunkSize);
+    lastChunk = (int *)malloc(sizeof(int)*chunkSize);
+    recvChunk = (int *)malloc(sizeof(int)*chunkSize);
+    tempChunk = (int *)malloc(sizeof(int)*chunkSize);
+
+    for (i = 0; i < count; i+=chunkSize) {
+
+      memset(chunk, 0, chunkSize);
+      if (i <= count - chunkSize) {
+	memcpy(chunk, arr+i, sizeof(int)*chunkSize);
+      } else {
+	memcpy(chunk, arr+i, sizeof(int)*(count - i));
+      }
+
+      memset(recvChunk, 0, sizeof(int)*chunkSize);
+      memset(lastChunk, 0, sizeof(int)*chunkSize);
+      memset(tempChunk, 0, sizeof(int)*chunkSize);
+
       if (myRank == numProcs -1) {
 	//save the last proc's element as this is going to be root
-	last = arr[i];
+	memcpy(lastChunk, chunk, sizeof(int)*chunkSize);
       }
-      
-
+            
 
       MPI_Barrier(comm);
 
@@ -313,7 +329,7 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
       //apply sweep across all procs on arr[i]
 
       //up sweep phase
-      //perform up-sweep on the arr[i]'s
+      //perform up-sweep on the chunk
       for(d = 0; d <= (int)log2(numProcs) - 1; d++) {
 	//for the current level get partial sums
 	tempPow = (int)pow(2, d+1);
@@ -322,15 +338,16 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	  if (myRank == (k+(int)(pow(2, d))-1)) {
 	    //send to (k+tempPow-1)
 	    //printf("\nsend from %d to %d", (k+(int)(pow(2, d))-1), (k+tempPow-1));
-	    send = arr[i];
-	    MPI_Send(&send, 1, datatype, (k+tempPow-1), tag, comm);
+	    MPI_Send(chunk, chunkSize, datatype, (k+tempPow-1), tag, comm);
 	  } else if (myRank == (k+tempPow-1)) {
 	    //receive from (k+(int)(pow(2, d))-1)
 	    //printf("\nreceive from %d to %d", (k+(int)(pow(2, d))-1), (k+tempPow-1));
-	    MPI_Recv(&recv, 1, datatype, (k+(int)(pow(2, d))-1), tag, comm,\
+	    MPI_Recv(recvChunk, chunkSize, datatype, (k+(int)(pow(2, d))-1), tag, comm,\
 		     &status);
-	    //add to arr[i]
-	    arr[i] += recv;
+	    //add received chunk to chunk being hold
+	    for (j = 0; j < chunkSize; j++) {
+	      chunk[j] += recvChunk[j]; 
+	    }
 	  }
 	}
 	//make sure all procs reach this stage
@@ -339,18 +356,21 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
       
       //make sure all procs reach this stage
       MPI_Barrier(comm);
-
+      /*
+      for (j = 0; j < chunkSize; j++) {
+	printf("\nb4 down myRank:%d chunk[%d]=%d", myRank, j, chunk[j]);
+      }
 
       if (myRank == 0) {
-	//printf("\nstarting down-sweep phase");
-      }
+	printf("\nstarting down-sweep phase");
+	}*/
 
 
       //down sweep phase
       //perform down-sweep on arr[i]'s
       if (myRank == numProcs -1) {
 	//set value for root of tree or for last proc
-	arr[i] = 0;
+	memset(chunk, 0, sizeof(int)*chunkSize);
       }
 
       for (d = (int)log2(numProcs) - 1; d >= 0; d--) {
@@ -360,52 +380,66 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	  
 	  if (myRank == (k+tempPow-1)) {
 	    //send from (k+tempPow-1) to (k+(int)pow(2, d)-1)
-	    send = arr[i];
-	    MPI_Send(&send, 1, datatype, (k+(int)pow(2, d)-1), tag, comm);
+	    MPI_Send(chunk, chunkSize, datatype, (k+(int)pow(2, d)-1), tag, comm);
 
 	    //receive from (k+(int)pow(2, d)-1)
-	    MPI_Recv(&recv, 1, datatype, (k+(int)pow(2, d)-1), tag, comm,	\
+	    MPI_Recv(recvChunk, chunkSize, datatype, (k+(int)pow(2, d)-1), tag, comm,	\
 		     &status);
 
-	    //add recv to arr[i]
-	    arr[i] += recv;
+	    //add received chunk to chunk being hold
+	    for (j = 0; j < chunkSize; j++) {
+	      //printf("\n rank:%d add recvchunk[%d]=%d to chunk[%d]=%d ",
+	      //myRank, j, recvChunk[j], j, chunk[j]);
+	      chunk[j] += recvChunk[j]; 
+	    }
 	    
-	  } else if (myRank == (k+(int)pow(2, d)-1)) {
+	  } else if (myRank == (k+(int)pow(2, d) - 1)) {
 	    //receive from (k+tempPow-1)
-	    MPI_Recv(&recv, 1, datatype, (k+tempPow-1), tag, comm, \
+	    MPI_Recv(recvChunk, chunkSize, datatype, (k+tempPow-1), tag, comm, \
 		     &status);
 	    
 	    //send from (k+(int)pow(2, d)-1) to (k+tempPow-1)
-	    send = arr[i];
-	    MPI_Send(&send, 1, datatype, (k+tempPow-1), tag, comm);
+	    MPI_Send(chunk, chunkSize, datatype, (k+tempPow-1), tag, comm);
+
+	    /*printf("\n replacing with: ");
+	    for (j = 0; j < chunkSize; j++) {
+	    printf("\n rank:%d replace chunk[%d]=%d with recvChunk[%d]=%d ",
+	    myRank, j, chunk[j], j, recvChunk[j]);
+	    }*/
 
 	    //replace arr[i] with value received
-	    arr[i] = recv;
+	    memcpy(chunk, recvChunk, sizeof(int)*chunkSize);
+	    
+
 	  }
 	}
 	//make sure all procs completed this iteration
 	MPI_Barrier(comm);
       }
 
-      /*for (k = 0; k < numProcs; k++) {
+      /*
+      for (j = 0; j < chunkSize; j++) {
+	printf("\nb4 shift myRank:%d chunk[%d]=%d", myRank, j, chunk[j]);
+      }
+
+      for (k = 0; k < numProcs; k++) {
 	if (myRank == k) {
 	  printf("\n B4 shift rank:%d val:%d", myRank, arr[i]);
 	}
 	}*/
       
-      temp = arr[i];
+      memcpy(tempChunk, chunk, sizeof(int)*chunkSize);
       //for inclusive scan need to shift arr[i]'s
       for (k = numProcs -1; k >= 1; k--) {
 	//send from procs k to k - 1
 	if (myRank == k) {
 	  //send from k 
-	  send = temp;
-	  MPI_Send(&send, 1, datatype, k-1, tag, comm);
+	  MPI_Send(tempChunk, chunkSize, datatype, k-1, tag, comm);
 	} else if (myRank == k-1) {
 	  //recv by k-1 
-	  MPI_Recv(&recv, 1, datatype, k, tag, comm, &status);
-	  //replace arr[i] with recv
-	  arr[i] = recv;
+	  MPI_Recv(recvChunk, chunkSize, datatype, k, tag, comm, &status);
+	  //replace chunk with recv
+	  memcpy(chunk, recvChunk,sizeof(int)*chunkSize);
 	}
       }
 
@@ -422,18 +456,21 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
       if (myRank == numProcs - 1) {
 	//last procs in the ranks
 	recv = 0;
+	memset(recvChunk, 0, sizeof(int)*chunkSize);
 	if (numProcs > 1) { 
 	  //recv from numProcs-2
-	  MPI_Recv(&recv, 1, datatype, numProcs - 2, tag, comm,	\
+	  MPI_Recv(recvChunk, chunkSize, datatype, numProcs - 2, tag, comm,	\
 		   &status);
 	}
 	//add recv to orig last elem
-	arr[i] = recv + last;
+	for (j = 0; j < chunkSize; j++) {
+	  chunk[j] = recvChunk[j] + lastChunk[j]; 
+	}
       } else if (myRank == numProcs - 2) {
 	//second last procs in ranks
 	//send to numProcs - 1
 	send = arr[i];
-	MPI_Send(&send, 1, datatype, numProcs  - 1, tag, comm);
+	MPI_Send(chunk, chunkSize, datatype, numProcs  - 1, tag, comm);
       }
 
       /*for (k = 0; k < numProcs; k++) {
@@ -441,17 +478,32 @@ int mySweepMPIScan(int *arr, int count, MPI_Datatype datatype, MPI_Comm comm) {
 	  printf("\n after last handle rank:%d val:%d", myRank, arr[i]);
 	}
 	}*/
-      
-      //ANOTHER ALTERNATIVE to shift
-      //gather all arr[i]'s at last proc
-      //shift arr 
-      //add last in orig array to last-1 elem
-      //scatter the arr across all proc
+      //copy values back to arr
+      if (i <= count - chunkSize) {
+	memcpy(arr+i, chunk, sizeof(int)*chunkSize);
+      } else {
+	memcpy(arr+i, chunk, sizeof(int)*(count - i));
+      }
 
     }
-  } else {
+  }   
+
+  if (chunk) {
+    free(chunk);
   }
   
+  if (lastChunk) {
+    free(lastChunk);
+  }
+  
+  if (recvChunk) {
+    free(recvChunk);
+  }
+  
+  if (tempChunk) {
+    free(tempChunk);
+  }
+
   return 1;
 }
   
@@ -527,7 +579,7 @@ int main(int argc, char *argv[]) {
   //printf("From process %d out of %d, Hello World!\n", myRank, numProcs);
 
   if (argc == 2) {
-    //printf("%s\n", argv[0]);
+    printf("%s\n", argv[0]);
     //printf("\n i/p file not passed, will randomly generate inputs\n");
     numLines = atoi(argv[1]);
     fillWithRandom(&nums, numLines);
@@ -603,7 +655,7 @@ int main(int argc, char *argv[]) {
   //make sure every process reach this checkpoint
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //odisplayArr(resDup, numLines);
+  //displayArr(resDup, numLines);
   fflush(stdout);
   MPI_Finalize();
   
