@@ -94,6 +94,17 @@ void shift(int *arr, int arrLen, int last) {
 }
 
 
+//perform shifting for inclusive scan
+void shiftNP2(int *arr, int arrLen, int last) {
+  int k;
+  for (k = 0; k < arrLen-1; k++) {
+    arr[k] = arr[k+1];
+  }
+  //add the last element in the end
+  arr[arrLen - 1] = last;
+}
+
+
 
 //insert passed element into set and return 0 if full set used
 int insertInSet(int *set, int setSize, int num) {
@@ -174,7 +185,9 @@ void segmentShift(int *arr, int *origArr, int *flags, int arrLen) {
 }
 
 
-//implement serial version of scan using up and down sweep
+
+
+//implement parallel version of segmented scan using up and down sweep
 void ompSScan(int *arr, int arrLen, int *flags, int numThreads) {
   int d, k;
   int temp, tempPow;
@@ -279,7 +292,245 @@ void ompSScan(int *arr, int arrLen, int *flags, int numThreads) {
 }
 
 
-//implement serial version of scan using up and down sweep
+
+//implement parallel version of segmented scan using up and down sweep for non-2 power
+void ompNP2SScan(int *arr, int arrLen, int *flags, int numThreads) {
+  int d, k;
+  int temp, tempPow;
+  int last;
+
+  int virtualRootIndex, virtualRootVal, virtualSize;
+  int *virtualFlags, *dupArr;
+
+
+  //create copy of original array
+  dupArr = (int *) malloc(sizeof(int)*arrLen);
+  memcpy(dupArr, arr, sizeof(int)*arrLen);
+
+  temp = (int) log2(arrLen);
+  virtualSize = (int) pow(2, temp + 1);
+  //TODO: free virtual flags
+  virtualFlags =  (int *) malloc(sizeof(int)*virtualSize);
+  memset(virtualFlags, 0, sizeof(int) * virtualSize);
+  memcpy(virtualFlags, flags, sizeof(int) * virtualSize);
+
+  printf("\nBefore up-down sweep: ");
+  displayArr(arr, arrLen);
+
+  //last element of array
+  last = -1;
+  virtualRootVal = 0;
+  virtualRootIndex = virtualSize - 1;
+  //perform up-sweep on the arr
+  for(d = 0; d <= (int)log2(virtualSize) - 1; d++) {
+    //for the current level get partial sums
+    tempPow = (int)pow(2, d+1);
+    /*#pragma omp parallel for default(none)				\
+  shared(d, arr, tempPow, arrLen,					\
+	 virtualRootVal, virtualRootIndex, virtualSize) private(k)	\
+	 num_threads(numThreads)*/
+    for (k = 0; k < virtualSize; k += tempPow) {
+      if (!virtualFlags[k + tempPow - 1]) {
+	if ((k + (int)(pow(2, d)) - 1) > arrLen-1			\
+	    && virtualRootIndex != (k + (int)(pow(2, d)) - 1)) {
+	  //dont do anything pair dont exists
+	} else if (virtualRootIndex == (k + (int)(pow(2, d)) - 1)) {
+	  virtualRootIndex = k + tempPow - 1;
+	}else if (k + tempPow - 1 > arrLen - 1){
+	  virtualRootVal += arr[k + (int)(pow(2, d)) - 1];
+	  virtualRootIndex = k + tempPow - 1;
+	} else {
+	  arr[k + tempPow - 1] = arr[k + tempPow - 1]	\
+	    + arr[k + (int)(pow(2, d)) - 1];
+	}
+      }
+      //or the virtualFlags to move up the flag
+      virtualFlags[k + tempPow - 1] = virtualFlags[k + (int)(pow(2, d)) - 1]\
+	| virtualFlags[k + tempPow - 1];
+
+    }
+  }
+
+  printf("\nAfter up sweep: ");
+  displayArr(arr, arrLen);
+  printf("\nvirtualRootIndex=%d", virtualRootIndex);
+  printf("\nvirtualRootVal=%d", virtualRootVal);
+
+  //perform down-sweep on array
+  virtualRootVal = 0;
+  
+  //propagate the reductions
+  for (d = ((int)log2(virtualSize) - 1); d >= 0; d--) {
+    tempPow = (int)pow(2, d+1);
+    //printf("\nd:%d tempPow:%d", d, tempPow);
+    //for the level propagate the reductions
+    /* #pragma omp parallel for default(none)		\
+  shared(arrLen, d, arr, tempPow, virtualRootVal,\
+	 virtualRootIndex, virtualSize) private(k, temp)	\
+	 num_threads(numThreads)*/
+    for (k = 0; k < virtualSize; k += tempPow) {
+      if (k + tempPow - 1 < arrLen) {
+	//do normal work
+	temp = arr[k + (int)pow(2, d) - 1];
+	//printf("\nk:%d d:%d accessing: %d", k, d, k + tempPow - 1);
+	arr[k + (int)(pow(2, d)) - 1] = arr[k + tempPow - 1];
+
+	if (virtualFlags[k + (int)pow(2, d)] && d) {
+	  //printf("\nk:%d d:%d accessing and set 0: %d", k, d, k + tempPow - 1);
+	  arr[k + tempPow - 1] = 0;
+	} else if (virtualFlags[k + (int)pow(2, d) - 1]) {
+	  //printf("\nk:%d d:%d accessing %d and set %d", k, d, k + tempPow - 1, temp);
+	  arr[k + tempPow - 1] = temp;
+	} else {
+	  //printf("\nk:%d d:%d accessing %d and add %d", k, d, k + tempPow - 1, temp);
+	  arr[k + tempPow - 1] = temp + arr[k + tempPow - 1];
+	}
+
+      } else if (k + (int)pow(2, d) - 1 > arrLen - 1		\
+		 && virtualRootIndex == k + tempPow - 1) {
+	virtualRootIndex = k + (int)pow(2, d) - 1;
+	//virtualRootVal = virtualRootVal;
+	//no need to change root
+      } else if (k + (int)pow(2, d) - 1 < arrLen) {
+
+	//left child inside, root/right child outside
+	temp = arr[k + (int)pow(2, d) - 1];
+	arr[k + (int)pow(2, d) - 1] = virtualRootVal;
+
+	if (virtualFlags[k + (int)pow(2, d)] && d) {
+	  //printf("\nk:%d d:%d accessing and set 0: %d", k, d, k + tempPow - 1);
+	  virtualRootVal = 0;
+	} else if (virtualFlags[k + (int)pow(2, d) - 1]) {
+	  //printf("\nk:%d d:%d accessing %d and set %d", k, d, k + tempPow - 1, temp);
+	  virtualRootVal = temp;
+	} else {
+	  //printf("\nk:%d d:%d accessing %d and add %d", k, d, k + tempPow - 1, temp);
+	  virtualRootVal += temp;
+	}
+
+      }
+      
+      //unset flag
+      //printf("\nk:%d d:%d unset flag at %d", k, d, k + (int)pow(2, d) - 1);
+      virtualFlags[k + (int)pow(2, d) - 1] = 0;
+    }
+  }
+
+  printf("\nAfter down sweep: ");
+  displayArr(arr, arrLen);
+  printf("\nvirtualRootIndex=%d", virtualRootIndex);
+  printf("\nvirtualRootVal=%d", virtualRootVal);
+
+  //do inclusive scan by shifting each element one index before
+  segmentShift(arr, dupArr, flags, arrLen);
+
+  printf("\nAfter shifting for inclusive scan: ");
+  displayArr(arr, arrLen);
+
+  free(virtualFlags);
+  free(dupArr);
+}
+
+
+
+//implement parallel version of scan using up and down sweep for non-2 power
+void ompNP2Scan(int *arr, int arrLen, int numThreads) {
+  int d, k;
+  int temp, tempPow;
+  int last;
+
+  int virtualRootIndex, virtualRootVal, virtualSize;
+  
+  temp = (int) log2(arrLen);
+  virtualSize = (int) pow(2, temp + 1);
+
+  printf("\nBefore up-down sweep: ");
+  displayArr(arr, arrLen);
+
+  //last element of array
+  last = -1;
+  virtualRootVal = 0;
+  virtualRootIndex = -1;
+  //perform up-sweep on the arr
+  for(d = 0; d <= (int)log2(virtualSize) - 1; d++) {
+    //for the current level get partial sums
+    tempPow = (int)pow(2, d+1);
+#pragma omp parallel for default(none)					\
+  shared(d, arr, tempPow, arrLen,					\
+	 virtualRootVal, virtualRootIndex, virtualSize) private(k)	\
+	 num_threads(numThreads)
+    for (k = 0; k < virtualSize; k += tempPow) {
+      
+      if ((k + (int)(pow(2, d)) - 1) > arrLen-1\
+	  && virtualRootIndex != (k + (int)(pow(2, d)) - 1)) {
+	//dont do anything pair dont exists
+      } else if (virtualRootIndex == (k + (int)(pow(2, d)) - 1)) {
+	virtualRootIndex = k + tempPow - 1;
+      }else if (k + tempPow - 1 > arrLen - 1){
+	virtualRootVal += arr[k + (int)(pow(2, d)) - 1];
+	virtualRootIndex = k + tempPow - 1;
+      } else {
+	arr[k + tempPow - 1] = arr[k + tempPow - 1]	\
+	  + arr[k + (int)(pow(2, d)) - 1];
+      }
+
+    }
+  }
+
+  printf("\nAfter up sweep: ");
+  displayArr(arr, arrLen);
+  printf("\nvirtualRootIndex=%d", virtualRootIndex);
+  printf("\nvirtualRootVal=%d", virtualRootVal);
+
+  //perform down-sweep on array
+  virtualRootVal = 0;
+  
+  for (d = ((int)log2(virtualSize) - 1); d >= 0; d--) {
+    tempPow = (int)pow(2, d+1);
+    //printf("\nd:%d tempPow:%d", d, tempPow);
+    //for the level propagate the reductions
+ #pragma omp parallel for default(none)		\
+  shared(arrLen, d, arr, tempPow, virtualRootVal,\
+	 virtualRootIndex, virtualSize) private(k, temp)	\
+	num_threads(numThreads)
+    for (k = 0; k < virtualSize; k += tempPow) {
+      if (k + tempPow - 1 < arrLen) {
+	//do normal work
+	temp = arr[k + (int)pow(2, d) - 1];
+	//printf("\nk:%d d:%d accessing: %d", k, d, k + tempPow - 1);
+	arr[k + (int)(pow(2, d)) - 1] = arr[k + tempPow - 1];
+	arr[k + tempPow - 1] += temp; 
+      } else if (k + (int)pow(2, d) - 1 > arrLen - 1\
+		 && virtualRootIndex == k + tempPow - 1) {
+	virtualRootIndex = k + (int)pow(2, d) - 1;
+	//virtualRootVal = virtualRootVal;
+	//no need to change root
+      } else if (k + (int)pow(2, d) - 1 < arrLen) {
+	//left child inside, root/right child outside
+	temp = arr[k + (int)pow(2, d) - 1];
+	arr[k + (int)pow(2, d) - 1] = virtualRootVal;
+	virtualRootVal += temp;
+      }      
+    }
+  }
+
+  printf("\nAfter down sweep: ");
+  displayArr(arr, arrLen);
+  printf("\nvirtualRootIndex=%d", virtualRootIndex);
+  printf("\nvirtualRootVal=%d", virtualRootVal);
+
+
+
+  //do inclusive scan by shifting each element one index before
+  shiftNP2(arr, arrLen, virtualRootVal);
+
+  printf("\nAfter shifting for inclusive scan: ");
+  displayArr(arr, arrLen);
+}
+
+
+
+//implement parallel version of scan using up and down sweep
 void ompScan(int *arr, int arrLen, int numThreads) {
   int d, k;
   int temp, tempPow;
@@ -364,7 +615,7 @@ void serialScan(int *arr, int arrLen) {
 
   //perform down-sweep on array
   arr[arrLen - 1] = 0;
-  for (d = (int)log2(arrLen); d >= 0; d--) {
+  for (d = (int)log2(arrLen) - 1; d >= 0; d--) {
     tempPow = (int)pow(2, d+1);
     //for the level propage the reductions
     for (k = 0; k < arrLen; k += tempPow) {
@@ -383,6 +634,26 @@ void serialScan(int *arr, int arrLen) {
   printf("\nAfter shifting for inclusive scan: ");
   displayArr(arr, arrLen);
 }
+
+
+
+//perform segmented scan on the passed array
+void performSScan2(int *arr, int arrLen, int numThreads) {
+  int *flags;
+
+  //get segmented flags
+  flags = createSegmentedFlags(arrLen);
+  printf("\nSegmented flags...");
+  displayArr(flags, arrLen);
+  
+  ompNP2SScan(arr, arrLen, flags, numThreads);
+
+  printf("\n After performing scan: ");
+  displayArr(arr, arrLen);
+}
+
+
+
 
 
 //perform segmented scan on the passed array
@@ -571,15 +842,17 @@ int main(int argc, char *argv[]) {
   //apply the scan on i/p array
   //OMP_Scan(nums, numCount, numThreads);
   printf("\n\nPerforming non segmented scan:");
-  performScan(nums, numCount, numThreads);
-
+  //performScan(nums, numCount, numThreads);
+  //ompNP2Scan(nums, numCount, numThreads);
   //read the numbers from i/p file
   numCount = readNums(ipFileName, &nums);
 
 
   printf("\n\nPerforming segmented scan:");
-  performSScan(nums, numCount, numThreads);
   
+  performSScan2(nums, numCount, numThreads);
+  
+
   endTime = getTime();
   printf("\nNum threads: %d Time taken: %1f\n",\
 	 numThreads, endTime - startTime);
