@@ -835,9 +835,12 @@ int main(int argc, char *argv[]) {
   memcpy(resDup, nums, sizeof(int)*numLines);   
   startTime = getTime();
   //perform the custom scan
-  //myMPI_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-  //myMPI_Collective_Scan(nums, resDup, numLines, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-  //mySweepMPIScan(resDup, numLines, MPI_INT, MPI_COMM_WORLD);
+  
+  //uncomment to run non-blocked scan, where it creates serially blocks of 
+  //size power of 2 and scan
+  //myMPIScan(resDup, numLines);
+
+  //will run blocked scan 
   myMPIScanMix(resDup, numLines);
 
   //make sure every process reach this checkpoint
