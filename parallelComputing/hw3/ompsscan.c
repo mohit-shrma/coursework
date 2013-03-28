@@ -172,6 +172,9 @@ void segmentShift(int *arr, int *origArr, int *flags, int arrLen) {
       //shift the next to current pos
       arr[i] = arr[i+1];
     }
+    if (flags[i]) {
+      arr[i] = origArr[i];
+    }
   }
 
 
@@ -185,6 +188,18 @@ void segmentShift(int *arr, int *origArr, int *flags, int arrLen) {
 }
 
 
+//implement linear scan
+void serialScan(int *arr, int* flags, int arrLen) {
+
+  int temp, i;
+
+  for (i = 1; i < arrLen; i++) {
+    if (!flags[i]) {
+      arr[i] += arr[i-1];
+    } 
+  }
+  
+}
 
 
 //implement parallel version of segmented scan using up and down sweep
@@ -550,12 +565,12 @@ void writeOp(int *arr, int count, char *opFileName) {
 int main(int argc, char *argv[]) {
   
   //store the array and length of array
-  int *nums, numCount;
+  int *nums, numCount, *numsDup, *flagsDup;
   //input and output filename containing numbers
   char *ipFileName, *opFileName;
   //number of threads
   int numThreads;
-  
+  int i;
   double endTime, startTime;
 
   if (argc < 3) {
@@ -573,7 +588,9 @@ int main(int argc, char *argv[]) {
 
   //read the numbers from i/p file
   numCount = readNums(ipFileName, &nums);
-
+  numsDup = (int *)malloc(sizeof(int)*numCount);
+  memcpy(numsDup, nums, sizeof(int)*numCount);
+  flagsDup = createSegmentedFlags(numCount);
   //printf("\nOriginal array: ");
   //displayArr(nums, numCount);
 
@@ -589,13 +606,28 @@ int main(int argc, char *argv[]) {
   endTime = getTime();
   printf("\nNum threads: %d Time taken: %1f\n",\
 	 numThreads, endTime - startTime);
+
+  //linear scan for results validation
+  serialScan(numsDup, flagsDup, numCount);
   
+  if (memcmp(nums, numsDup, sizeof(int)*numCount)) {
+    printf("\n results are different");
+    for (i = 0; i < numCount; i++) {
+      if (nums[i] != numsDup[i]) {
+	printf("\n%d %d  %d %d ", i, flagsDup[i], nums[i], numsDup[i]);
+      }
+    }
+    printf("\n");
+  }
+
   if (opFileName) {
     //save the output
     writeOp(nums, numCount, opFileName);
   }
 
   free(nums);
+  free(flagsDup);
+  free(numsDup);
   
   return 0;
 }

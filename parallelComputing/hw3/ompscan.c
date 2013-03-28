@@ -105,6 +105,19 @@ void shiftNP2(int *arr, int arrLen, int last) {
 }
 
 
+void linearScan(int *arr, int arrLen) {
+  int i;
+  
+  for (i = 1; i < arrLen; i++) {
+    arr[i] += arr[i-1];
+  }
+  
+  return arr;
+}
+
+
+
+
 //implement parallel version of scan using up and down sweep for non-2 power
 void ompNP2Scan(int *arr, int arrLen, int numThreads) {
   int d, k;
@@ -381,12 +394,12 @@ void writeOp(int *arr, int count, char *opFileName) {
 int main(int argc, char *argv[]) {
   
   //store the array and length of array
-  int *nums, numCount;
+  int *nums, numCount, *numsDup;
   //input and output filename containing numbers
   char *ipFileName, *opFileName;
   //number of threads
   int numThreads;
-  
+  int i;
   double endTime, startTime;
 
   if (argc < 3) {
@@ -404,6 +417,8 @@ int main(int argc, char *argv[]) {
 
   //read the numbers from i/p file
   numCount = readNums(ipFileName, &nums);
+  numsDup = (int*) malloc(sizeof(int) * numCount);
+  memcpy(numsDup, nums, sizeof(int) * numCount);
 
   //printf("\nOriginal array: ");
   //displayArr(nums, numCount);
@@ -413,20 +428,31 @@ int main(int argc, char *argv[]) {
   //apply the scan on i/p array
   printf("\n\nPerforming non segmented scan:");
   //uncomment to perform scan by grouping in powers of 2
-  performScan(nums, numCount, numThreads);
+  //performScan(nums, numCount, numThreads);
   //run generic scan for non-power of 2
-  //ompNP2Scan(nums, numCount, numThreads);
+  ompNP2Scan(nums, numCount, numThreads);
     
   endTime = getTime();
   printf("\nNum threads: %d Time taken: %1f\n",\
 	 numThreads, endTime - startTime);
+
+  //linear scan to validate the results
+  linearScan(numsDup, numCount);
   
+  if (memcmp(nums, numsDup, sizeof(int)*numCount)) {
+    printf("\n results are different");
+    for (i = 0; i < numCount; i++) {
+      printf("\n%d \t %d", nums[i], numsDup[i]);
+    }
+    printf("\n");
+  }
+
   if (opFileName) {
     //save the output
     writeOp(nums, numCount, opFileName);
   }
 
   free(nums);
-  
+  free(numsDup);
   return 0;
 }
