@@ -61,6 +61,9 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
   csrMat = (CSRMat *)0;
+  rowInfo = (int*) 0;
+  myCSRMat = (CSRMat *) 0; 
+    
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
   rowInfo = (int*) malloc(sizeof(int)*2*numProcs);
   memset(rowInfo, 0, sizeof(int)*2*numProcs);
@@ -84,6 +87,7 @@ int main(int argc, char *argv[]) {
   printf("\nlocal sparse mat rank:%d\n", myRank);
   //displSparseMat(myCSRMat);
 
+  /*
   if (rowInfo) {
     free(rowInfo);
   }
@@ -95,7 +99,7 @@ int main(int argc, char *argv[]) {
   if (csrMat) {
     free(csrMat);
   }
-
+  */
   
   MPI_Finalize();
 

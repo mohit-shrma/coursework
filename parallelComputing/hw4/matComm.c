@@ -33,6 +33,8 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
+  myNNZCount = -1;
+
   rowCount = (int *) 0;
   colCount = (int *) 0;
   
@@ -43,8 +45,6 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   sendCountRowPtr = (int *) 0;
     
   printf("\nrank:%d divide indices", myRank);
-  MPI_Barrier(MPI_COMM_WORLD);
-  
   
   //divide row indices among matrix
   if (myRank == ROOT) {
@@ -110,6 +110,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
 
       //send nnz count to procs
       if (i != ROOT) {
+	printf("\nrank:%d sending %d", myRank, *(colCount + i));
 	MPI_Send(colCount+i, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
       } else {
 	myNNZCount = colCount[ROOT];
@@ -138,8 +139,6 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     MPI_Recv(&myNNZCount, 1, MPI_INT, ROOT, 100, MPI_COMM_WORLD, &status);
   }
 
-
-
   printf("\nRank: %d nnzcount:%d ", myRank, myNNZCount);
 
   //prepare storage for local csr matrix
@@ -164,18 +163,27 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
 	       MPI_COMM_WORLD);
   */
   //free allocated mems
-
-  if (rowCount) {
+  
+  if (rowCount && myRank == ROOT) {
     free(rowCount);
+    rowCount = (int*)0;
+ 
     free(colCount);
-    
+    colCount = (int*)0;
+ 
     free(dispRowPtr);
+    dispRowPtr = (int*)0;
+ 
     free(sendCountRowPtr);
-    
+    sendCountRowPtr = (int*)0;
+ 
     free(dispColInd);
-    free(sendCountRowPtr);
+    dispColInd = (int*)0;
+ 
+    free(sendCountColInd);
+    sendCountColInd = (int*)0;
   }
-
+  
   printf("\n exiting matcomm rank: %d", myRank);
   
 }
