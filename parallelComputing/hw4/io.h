@@ -1,8 +1,6 @@
 #ifndef _IO_
 #define _IO_
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "common.h"
 
 #define BUF_SZ 200

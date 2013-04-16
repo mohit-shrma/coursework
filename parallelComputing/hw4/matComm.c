@@ -1,5 +1,10 @@
-#include "matComm.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mpi.h>
 
+#include "matComm.h"
+#include "io.h"
 //sparse mat local to procs *myCSRMat
 
 //*rowInfo store row details s.t. rowInfo[i] is starting row number &
@@ -25,6 +30,9 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   //store sendCount for scatterv from colInd of csrMat
   int *sendCountColInd;
 
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
   rowCount = (int *) 0;
   colCount = (int *) 0;
   
@@ -33,15 +41,14 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   
   dispColInd = (int *) 0;
   sendCountRowPtr = (int *) 0;
-
-  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
-  MPI_Comm_size(MPI_COMM_WORLD, &myRank);
-
-  //(*rowInfo) = (int *) malloc(sizeof(int)*2*numProcs);
-  memset((*rowInfo), 0, sizeof(int)*2*numProcs);
-
+    
+  printf("\nrank:%d divide indices", myRank);
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+  
   //divide row indices among matrix
   if (myRank == ROOT) {
+    printf("\nrank:%d inside divide indices", myRank);
     //divide rows ind among matrix
     totalRows = csrMat->numRows;
     rowPerProc = totalRows / numProcs;
@@ -64,7 +71,8 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     }
     
   }
-
+  
+  
   //send the row info to procs
   MPI_Bcast((*rowInfo), 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
   
@@ -108,7 +116,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
       }
     }
     
-    printf("RowCount: ");
+    printf("\nRowCount: ");
     dispArray(rowCount, numProcs);
 
     printf("ColCount: ");
@@ -130,8 +138,12 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     MPI_Recv(&myNNZCount, 1, MPI_INT, ROOT, 100, MPI_COMM_WORLD, &status);
   }
 
+
+
+  printf("\nRank: %d nnzcount:%d ", myRank, myNNZCount);
+
   //prepare storage for local csr matrix
-  //*myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
+  /*myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
   (*myCSRMat)->nnzCount = myNNZCount;
   (*myCSRMat)->numRows = rowCount[myRank];
   (*myCSRMat)->numCols = csrMat->numCols;
@@ -150,8 +162,9 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   MPI_Scatterv(csrMat->rowPtr, sendCountColInd, dispColInd, MPI_FLOAT,
 	       (*myCSRMat)->colInd, (*myCSRMat)->nnzCount, MPI_FLOAT, ROOT,
 	       MPI_COMM_WORLD);
-
+  */
   //free allocated mems
+
   if (rowCount) {
     free(rowCount);
     free(colCount);
@@ -163,5 +176,6 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     free(sendCountRowPtr);
   }
 
+  printf("\n exiting matcomm rank: %d", myRank);
   
 }

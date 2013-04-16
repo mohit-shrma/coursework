@@ -2,9 +2,13 @@
  * implements sparse matrix vector multiplication A*b = x
  */
 
-#include <mpi.h>
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <mpi.h>
+
+
 #include "common.h"
 #include "io.h"
 #include "matComm.h"
@@ -53,28 +57,47 @@ int main(int argc, char *argv[]) {
   matFileName = argv[1];
   vecFileName = argv[2];
 
-  numProcs = MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
-  myRank = MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
+  csrMat = (CSRMat *)0;
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
-  rowInfo = (int*) malloc(sizeof(int)*numProcs);
+  rowInfo = (int*) malloc(sizeof(int)*2*numProcs);
+  memset(rowInfo, 0, sizeof(int)*2*numProcs);
+    
+  printf("\n rank:%d numProcs:%d ", myRank, numProcs);
 
-
-
+  
   //read and print sparse matrix
   if (myRank == ROOT) {
     getDimNCount(matFileName, &dim, &nnzCount);
     csrMat = readSparseMat(matFileName, dim, nnzCount);
-    printf("\n display full sparse mat rank:%d numProcs:%d\n", myRank,
-	   numProcs);
-    displSparseMat(csrMat);
+    //printf("\n display full sparse mat rank:%d numProcs:%d\n", myRank,
+    //numProcs);
+    //displSparseMat(csrMat);
   } else {
   }
-  
+
+
+  printf("\nrank:%d before scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, &rowInfo);
-  printf("\n sparse mat rank:%d\n", myRank);
-  displSparseMat(myCSRMat);
+  printf("\nlocal sparse mat rank:%d\n", myRank);
+  //displSparseMat(myCSRMat);
+
+  if (rowInfo) {
+    free(rowInfo);
+  }
+
+  if (myCSRMat) {
+    free(myCSRMat);
+  }
+
+  if (csrMat) {
+    free(csrMat);
+  }
+
   
+  MPI_Finalize();
 
   return 0;
 }

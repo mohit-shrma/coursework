@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+
 #include "io.h"
 
 //split the passed line into row, col, value
