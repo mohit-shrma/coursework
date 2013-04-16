@@ -15,6 +15,8 @@ void displSparseMat(CSRMat *csrMat, int rank);
 
 void dispArray(int *arr, int len);
 
+void dispFArray(float *arr, int len);
+
 #endif
 
 

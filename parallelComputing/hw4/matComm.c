@@ -202,3 +202,38 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   printf("\n exiting matcomm rank: %d", myRank);
   
 }
+
+
+
+
+void scatterVector(float *vec, int *rowInfo, float *myVec) {
+
+  int myRank, numProcs;
+  int i;
+
+  int *dispRowPtr, *sendCountRowPtr;
+  int myRowCount;
+
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
+  dispRowPtr = (int *) malloc(sizeof(int) * numProcs);
+  sendCountRowPtr = (int *) malloc(sizeof(int) * numProcs);
+
+  if (myRank == ROOT) {
+
+    for (i = 0; i < numProcs; i++) {
+      //get offset and count of rows to be send to proc i
+      dispRowPtr[i] = rowInfo[i];
+      sendCountRowPtr[i] = rowInfo[i+numProcs] - rowInfo[i] + 1;
+    }
+  }
+
+  myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
+
+  //communicate marked values to procs
+  MPI_Scatterv(vec, sendCountRowPtr, dispRowPtr, MPI_FLOAT,
+	       myVec, myRowCount, MPI_FLOAT, ROOT,
+	       MPI_COMM_WORLD);
+
+}

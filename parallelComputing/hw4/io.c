@@ -159,8 +159,8 @@ CSRMat* readSparseMat(char *matFileName, int dim, int nnz) {
 
 
 //read the sparse vector of size dim and return
-int* readSparseVec(char* vecFileName, int dim) {
-  int *bVec, i;
+float* readSparseVec(char* vecFileName, int dim) {
+  float *bVec, i;
   FILE *vecFile;
   char *line;
 
@@ -170,11 +170,11 @@ int* readSparseVec(char* vecFileName, int dim) {
   if ((vecFile = fopen(vecFileName, "r")) == NULL) {
     fprintf(stderr, "Error: failed to read file %s \n", vecFileName);
   } else {
-    bVec = (int *) malloc(sizeof(int) * dim);
+    bVec = (float *) malloc(sizeof(float) * dim);
     line = malloc(BUF_SZ);
     for (i = 0; i < dim; i++) {
       fgets(line, BUF_SZ, vecFile);
-      bVec[i] = atoi(line);
+      bVec[i] = atof(line);
     }
   }
 
@@ -193,3 +193,13 @@ void dispArray(int *arr, int len) {
   }
   printf("\n");
 }
+
+
+void dispFArray(float *arr, int len, int rank) {
+  int i;
+  for (i = 0; i < len; i++) {
+    printf("\nrank=%d arr[%d]=%f ", rank, i,arr[i]);
+  }
+  printf("\n");
+}
+

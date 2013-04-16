@@ -44,7 +44,9 @@ int main(int argc, char *argv[]) {
   char *matFileName, *vecFileName;
   int numProcs, myRank;
   CSRMat *csrMat, *myCSRMat;
-  int dim, nnzCount, *rowInfo;
+  float *bvec;
+  int dim, nnzCount, *rowInfo, myRowCount;
+  float *myVec;
 
   MPI_Init(&argc, &argv);
   
@@ -63,7 +65,9 @@ int main(int argc, char *argv[]) {
   csrMat = (CSRMat *)0;
   rowInfo = (int*) 0;
   myCSRMat = (CSRMat *) 0; 
-    
+  bVec = (float *)0;
+  myVec = (float *) 0;
+
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
   rowInfo = (int*) malloc(sizeof(int)*2*numProcs);
   memset(rowInfo, 0, sizeof(int)*2*numProcs);
@@ -71,22 +75,35 @@ int main(int argc, char *argv[]) {
   printf("\n rank:%d numProcs:%d ", myRank, numProcs);
 
   
-  //read and print sparse matrix
+  //read sparse matrix and vector
   if (myRank == ROOT) {
     getDimNCount(matFileName, &dim, &nnzCount);
     csrMat = readSparseMat(matFileName, dim, nnzCount);
     //printf("\n display full sparse mat rank:%d numProcs:%d\n", myRank,
     //numProcs);
     //displSparseMat(csrMat);
+
+    bVec = readSparseVec(vecFileName, dim);
+    printf("\n display sparse vector:");
+    dispFArray(bVec, dim);
   } else {
     csrMat = (CSRMat *) malloc(sizeof(CSRMat));
   }
 
-
-  printf("\nrank:%d before scatter\n", myRank);
+  /*
+  printf("\nrank:%d before matrix scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, &rowInfo);
   printf("\nlocal sparse mat rank:%d\n", myRank);
   displSparseMat(myCSRMat, myRank);
+  */
+
+  myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
+  myVec = (float *) malloc(sizeof(float) * myRowCount);
+
+  printf("\nrank:%d before vector scatter\n", myRank);
+  scatterVector(bVec, rowInfo, &myVec);
+  printf("\nlocal vec rank:%d\n", myRank);
+  dispFArray(myVec, myRowCount);
 
   /*
   if (rowInfo) {
@@ -100,6 +117,11 @@ int main(int argc, char *argv[]) {
   if (csrMat) {
     free(csrMat);
   }
+  
+  if (bVec) {
+    free(bVec);
+  }
+
   */
   
   MPI_Finalize();
