@@ -4,6 +4,6 @@
 
 void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo);
 
-void scatterVector(int *vec, int *rowInfo);
+void scatterVector(float *vec, int *rowInfo, float *myVec);
 
 #endif

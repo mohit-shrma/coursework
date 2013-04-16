@@ -160,11 +160,12 @@ CSRMat* readSparseMat(char *matFileName, int dim, int nnz) {
 
 //read the sparse vector of size dim and return
 float* readSparseVec(char* vecFileName, int dim) {
-  float *bVec, i;
+  float *bVec;
   FILE *vecFile;
   char *line;
+  int i;
 
-  bVec = (int *) 0;
+  bVec = (float *) 0;
   line = (char *)0;
 
   if ((vecFile = fopen(vecFileName, "r")) == NULL) {

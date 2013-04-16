@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
   char *matFileName, *vecFileName;
   int numProcs, myRank;
   CSRMat *csrMat, *myCSRMat;
-  float *bvec;
+  float *bVec;
   int dim, nnzCount, *rowInfo, myRowCount;
   float *myVec;
 
@@ -85,25 +85,25 @@ int main(int argc, char *argv[]) {
 
     bVec = readSparseVec(vecFileName, dim);
     printf("\n display sparse vector:");
-    dispFArray(bVec, dim);
+    dispFArray(bVec, dim, myRank);
   } else {
     csrMat = (CSRMat *) malloc(sizeof(CSRMat));
   }
 
-  /*
+  
   printf("\nrank:%d before matrix scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, &rowInfo);
   printf("\nlocal sparse mat rank:%d\n", myRank);
   displSparseMat(myCSRMat, myRank);
-  */
+  
 
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
   myVec = (float *) malloc(sizeof(float) * myRowCount);
 
   printf("\nrank:%d before vector scatter\n", myRank);
-  scatterVector(bVec, rowInfo, &myVec);
+  scatterVector(bVec, rowInfo, myVec);
   printf("\nlocal vec rank:%d\n", myRank);
-  dispFArray(myVec, myRowCount);
+  dispFArray(myVec, myRowCount, myRank);
 
   /*
   if (rowInfo) {
