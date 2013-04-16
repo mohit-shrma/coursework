@@ -151,7 +151,9 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
 
   (*myCSRMat)->nnzCount = myNNZCount;
   (*myCSRMat)->numRows = (*myCSRMat)->origLastRow - (*myCSRMat)->origFirstRow  + 1;
-  (*myCSRMat)->numCols = (*myCSRMat)->numRows;
+  //number of columns is identical to original num columns 
+  //in this case num rows is equal to num cols in original matrix
+  (*myCSRMat)->numCols = (*rowInfo)[(numProcs-1) + numProcs] + 1;
 
   (*myCSRMat)->rowPtr = (int *) malloc(sizeof(int) * (((*myCSRMat)->numRows)+1));
   memset((*myCSRMat)->rowPtr, 0, sizeof(int) * (((*myCSRMat)->numRows)+1));

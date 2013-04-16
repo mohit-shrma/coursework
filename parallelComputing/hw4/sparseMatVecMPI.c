@@ -15,28 +15,6 @@
 
 
 
-//distribute the matrices and vector from file to each process
-void distribute(char *matFileName, char *vecFileName, int n) {
-  
-  //get the number of procs
-
-  //get the current rank
-  
-  //start row ind to store
-
-  //end row ind to store
-
-  //initialize the local CSRMat struct variable
-
-  //read the matrix file: row, col, val
-  
-  //fill the local CSRMat struct var 
-
-  //read the vector file
-
-  //fill the local vector
-  
-}
 
 
 int main(int argc, char *argv[]) {
