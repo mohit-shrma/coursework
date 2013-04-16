@@ -26,6 +26,9 @@ typedef struct {
   int numCols;
   //number of non-zero values or size of values[]
   int nnzCount;
+
+  //store mapping to original mat of row
+  int origFirstRow, origLastRow;
 } CSRMat;
 
 

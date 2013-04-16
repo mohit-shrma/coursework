@@ -53,10 +53,12 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     totalRows = csrMat->numRows;
     rowPerProc = totalRows / numProcs;
     extraRows = totalRows % numProcs;
-    
+    printf("\nrowPerProc = %d", rowPerProc);
+    printf("\nextraRows = %d", extraRows);
     prevEndRow = -1;
     //assuming row ind starts from 0
     for (i = 0; i < numProcs; i++) {
+      printf("\nprevEndRow = %d", prevEndRow);
       (*rowInfo)[i] = prevEndRow + 1;
       (*rowInfo)[i+numProcs] = (*rowInfo)[i] + rowPerProc - 1;
       if (extraRows-- > 0) {
@@ -140,17 +142,27 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   }
 
   printf("\nRank: %d nnzcount:%d ", myRank, myNNZCount);
+  printf("\nrowInfo[%d] = %d rowInfo[%d] = %d ", myRank, (*rowInfo)[myRank], myRank+numProcs, (*rowInfo)[myRank+numProcs]);
 
   //prepare storage for local csr matrix
-  /*myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
+  
+  (*myCSRMat)->origFirstRow = (*rowInfo)[myRank];
+  (*myCSRMat)->origLastRow = (*rowInfo)[myRank+numProcs];
+
   (*myCSRMat)->nnzCount = myNNZCount;
-  (*myCSRMat)->numRows = rowCount[myRank];
-  (*myCSRMat)->numCols = csrMat->numCols;
+  (*myCSRMat)->numRows = (*myCSRMat)->origLastRow - (*myCSRMat)->origFirstRow  + 1;
+  (*myCSRMat)->numCols = (*myCSRMat)->numRows;
 
-  (*myCSRMat)->rowPtr = (int *) malloc(sizeof(int) * (*myCSRMat)->numRows);
+  (*myCSRMat)->rowPtr = (int *) malloc(sizeof(int) * (((*myCSRMat)->numRows)+1));
+  memset((*myCSRMat)->rowPtr, 0, sizeof(int) * (((*myCSRMat)->numRows)+1));
+
   (*myCSRMat)->colInd = (int *) malloc(sizeof(int) * myNNZCount);
-  (*myCSRMat)->values = (float *) malloc(sizeof(float) * myNNZCount);
+  memset((*myCSRMat)->colInd, 0, sizeof(int) * myNNZCount);
 
+  (*myCSRMat)->values = (float *) malloc(sizeof(float) * myNNZCount);
+  memset((*myCSRMat)->values, 0, sizeof(float) * myNNZCount);
+
+  
   //communicate marked values to procs
   MPI_Scatterv(csrMat->rowPtr, sendCountRowPtr, dispRowPtr, MPI_INT,
 	       (*myCSRMat)->rowPtr, (*myCSRMat)->numRows, MPI_INT, ROOT,
@@ -158,10 +170,13 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   MPI_Scatterv(csrMat->colInd, sendCountColInd, dispColInd, MPI_INT,
 	       (*myCSRMat)->colInd, (*myCSRMat)->nnzCount, MPI_INT, ROOT,
 	       MPI_COMM_WORLD);
-  MPI_Scatterv(csrMat->rowPtr, sendCountColInd, dispColInd, MPI_FLOAT,
-	       (*myCSRMat)->colInd, (*myCSRMat)->nnzCount, MPI_FLOAT, ROOT,
+  MPI_Scatterv(csrMat->values, sendCountColInd, dispColInd, MPI_FLOAT,
+	       (*myCSRMat)->values, (*myCSRMat)->nnzCount, MPI_FLOAT, ROOT,
 	       MPI_COMM_WORLD);
-  */
+  
+  (*myCSRMat)->rowPtr[(*myCSRMat)->numRows] = (*myCSRMat)->rowPtr[0] + myNNZCount;
+  
+
   //free allocated mems
   
   if (rowCount && myRank == ROOT) {

@@ -11,7 +11,7 @@ int* readSparseVec(char* vecFileName, int dim);
 
 void getDimNCount(char *vecFileName, int *dim, int *nnz);
 
-void displSparseMat(CSRMat *csrMat);
+void displSparseMat(CSRMat *csrMat, int rank);
 
 void dispArray(int *arr, int len);
 

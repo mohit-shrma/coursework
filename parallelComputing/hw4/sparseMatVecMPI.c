@@ -79,13 +79,14 @@ int main(int argc, char *argv[]) {
     //numProcs);
     //displSparseMat(csrMat);
   } else {
+    csrMat = (CSRMat *) malloc(sizeof(CSRMat));
   }
 
 
   printf("\nrank:%d before scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, &rowInfo);
   printf("\nlocal sparse mat rank:%d\n", myRank);
-  //displSparseMat(myCSRMat);
+  displSparseMat(myCSRMat, myRank);
 
   /*
   if (rowInfo) {

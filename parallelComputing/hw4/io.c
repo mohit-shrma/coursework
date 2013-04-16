@@ -75,11 +75,19 @@ void getDimNCount(char *matFileName, int *dim, int *nnz) {
 
 
 //display sparse matrix
-void displSparseMat(CSRMat *csrMat) {
+void displSparseMat(CSRMat *csrMat, int rank) {
   int i, j;
+  
+  int startValInd, endValInd;
+
+  printf("\nRank:%d numRows:%d", rank, csrMat->numRows);
+  printf("\nRank:%d nnz count:%d", rank, csrMat->nnzCount);
+
   for (i = 0; i < csrMat->numRows; i++) {
-    for (j = csrMat->rowPtr[i]; j < csrMat->rowPtr[i+1]; j++) {
-      printf("\n%d\t%d\t%f", i, csrMat->colInd[j], csrMat->values[j]);
+    startValInd = csrMat->rowPtr[i] - csrMat->rowPtr[0];
+    endValInd = csrMat->rowPtr[i+1] - csrMat->rowPtr[0];
+    for (j = startValInd; j < endValInd; j++) {
+      printf("\nrank=%d\t%d\t%d\t%f\t%d", rank, i, csrMat->colInd[j], csrMat->values[j], j);
     }
   }
   printf("\n");
@@ -116,6 +124,9 @@ CSRMat* readSparseMat(char *matFileName, int dim, int nnz) {
     csrMat->colInd = (int *) malloc(sizeof(int) * nnz);
     csrMat->values = (float *) malloc(sizeof(float) * nnz);
     
+    csrMat->origFirstRow = 0;
+    csrMat->origLastRow = dim -1;
+
     //read matrix file to fill the matrix
     line = malloc(BUF_SZ);
 
