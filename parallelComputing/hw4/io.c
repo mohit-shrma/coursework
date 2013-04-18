@@ -80,14 +80,16 @@ void displSparseMat(CSRMat *csrMat, int rank) {
   
   int startValInd, endValInd;
 
-  printf("\nRank:%d numRows:%d", rank, csrMat->numRows);
-  printf("\nRank:%d nnz count:%d", rank, csrMat->nnzCount);
-
+  printf("\nmyCSRMat Rank:%d numRows:%d", rank, csrMat->numRows);
+  printf("\nmyCSRMat Rank:%d nnz count:%d", rank, csrMat->nnzCount);
+  printf("\nmyCSRMat Rank: %d rowPtr: ", rank);
+  dispArray(csrMat->rowPtr, csrMat->numRows+1, rank);
+  
   for (i = 0; i < csrMat->numRows; i++) {
     startValInd = csrMat->rowPtr[i] - csrMat->rowPtr[0];
     endValInd = csrMat->rowPtr[i+1] - csrMat->rowPtr[0];
     for (j = startValInd; j < endValInd; j++) {
-      printf("\nrank=%d\t%d\t%d\t%f\t%d", rank, i, csrMat->colInd[j], csrMat->values[j], j);
+      //printf("\nrank=%d\t%d\t%d\t%f\t%d", rank, i, csrMat->colInd[j], csrMat->values[j], j);
     }
   }
   printf("\n");
@@ -159,19 +161,17 @@ CSRMat* readSparseMat(char *matFileName, int dim, int nnz) {
 
 
 //read the sparse vector of size dim and return
-float* readSparseVec(char* vecFileName, int dim) {
-  float *bVec;
+void readSparseVec(float *bVec, char* vecFileName, int dim) {
+
   FILE *vecFile;
   char *line;
   int i;
 
-  bVec = (float *) 0;
   line = (char *)0;
 
   if ((vecFile = fopen(vecFileName, "r")) == NULL) {
     fprintf(stderr, "Error: failed to read file %s \n", vecFileName);
   } else {
-    bVec = (float *) malloc(sizeof(float) * dim);
     line = malloc(BUF_SZ);
     for (i = 0; i < dim; i++) {
       fgets(line, BUF_SZ, vecFile);
@@ -183,7 +183,6 @@ float* readSparseVec(char* vecFileName, int dim) {
     free(line);
   }
   fclose(vecFile);
-  return bVec;
 }
 
 

@@ -66,15 +66,15 @@ typedef struct {
   int *recvInd;
   
   //store elements of b that are sent
-  int *sendBuf;
+  float *sendBuf;
 
   //store elements of b that are received
-  int *recvBuf;
+  float *recvBuf;
   
 } BVecComParams;
 
-void init(BVecComParams bVecParams);
+void init(BVecComParams *bVecParams);
 
-void freeBVecComParams(BVecComParams bVecParams);
+void freeBVecComParams(BVecComParams *bVecParams);
 
 #endif

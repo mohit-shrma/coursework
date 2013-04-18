@@ -7,7 +7,7 @@
 
 CSRMat* readSparseMat(char *matFileName, int dim, int nnz); 
 
-float* readSparseVec(char* vecFileName, int dim);
+void readSparseVec(float *bVec, char* vecFileName, int dim);
 
 void getDimNCount(char *vecFileName, int *dim, int *nnz);
 

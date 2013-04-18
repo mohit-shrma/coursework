@@ -11,8 +11,8 @@ void init(BVecComParams *bVecParams) {
     bVecParams->sendInd = (int *) 0;
     bVecParams->recvPtr = (int *) 0;
     bVecParams->recvInd = (int *) 0;
-    bVecParams->sendBuf = (int *) 0;
-    bVecParams->recvBuf = (int *) 0;
+    bVecParams->sendBuf = (float *) 0;
+    bVecParams->recvBuf = (float *) 0;
   }
 }
 

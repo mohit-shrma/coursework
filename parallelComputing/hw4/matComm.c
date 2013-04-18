@@ -45,9 +45,12 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   sendCountRowPtr = (int *) 0;
     
   printf("\nrank:%d divide indices", myRank);
-  
+
   //divide row indices among matrix
   if (myRank == ROOT) {
+    printf("\ndisplay csr rowptr b4 dividing indices: ");
+    dispArray(csrMat->rowPtr, csrMat->numRows+1, myRank);
+
     printf("\nrank:%d inside divide indices", myRank);
     //divide rows ind among matrix
     totalRows = csrMat->numRows;
@@ -90,6 +93,9 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     dispColInd = (int *) malloc(sizeof(int)*numProcs);
     sendCountColInd = (int *) malloc(sizeof(int)*numProcs);
     
+    printf("\ndisplay csr rowptr b4 scattering: ");
+    dispArray(csrMat->rowPtr, csrMat->numRows+1, myRank);
+
     for (i = 0; i < numProcs; i++) {
       //start end assigned to proc i
       startRow = (*rowInfo)[i];
@@ -102,6 +108,12 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
       //col count or non-zero values for proc i
       colCount[i] = csrMat->rowPtr[endRow+1] - csrMat->rowPtr[startRow];
       
+      printf("\ncolCount[%d] = rowPtr[%d] - rowPtr[%d] = %d - %d = %d", i,
+	     endRow + 1, startRow,
+	     csrMat->rowPtr[endRow+1],
+	     csrMat->rowPtr[startRow],
+	     csrMat->rowPtr[endRow+1] - csrMat->rowPtr[startRow]);
+
       //get offset and count of rows to be send to proc i
       dispRowPtr[i] = startRow;
       sendCountRowPtr[i] = rowCount[i];
@@ -112,7 +124,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
 
       //send nnz count to procs
       if (i != ROOT) {
-	printf("\nrank:%d sending %d", myRank, *(colCount + i));
+	printf("\nrank:%d sending to %d values  %d", myRank, i, *(colCount + i));
 	MPI_Send(colCount+i, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
       } else {
 	myNNZCount = colCount[ROOT];
@@ -178,7 +190,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
   
   (*myCSRMat)->rowPtr[(*myCSRMat)->numRows] = (*myCSRMat)->rowPtr[0] + myNNZCount;
   
-
+  
   //free allocated mems
   
   if (rowCount && myRank == ROOT) {

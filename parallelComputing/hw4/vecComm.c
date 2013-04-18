@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <mpi.h>
+#include <string.h>
 #include "vecComm.h"
 #include "io.h"
 
@@ -59,21 +60,21 @@ int modBinSearch(int *arr, int len, int k) {
   
   lb = 0, ub = len-1;
 
-  while (lb < ub) {
+  while (lb <= ub) {
     mid = (lb+ub)/2;
     if (k == arr[mid]) {
       //found the exact val, passed row is either start or end
       if (mid %2 == 0) {
 	//start row
-	return mid;
+	return mid/2;
       } else {
 	//end row
-	return mid-1;
+	return (mid-1)/2;
       }
     } else {
       if (arr[mid] < k && k < arr[mid+1]) {
 	if (mid % 2 == 0) {
-	  return mid;
+	  return mid/2;
 	} else {
 	  printf("\n shouldn't reach here %d < %d < %d", arr[mid], k,
 		 arr[mid+1]);
@@ -81,16 +82,16 @@ int modBinSearch(int *arr, int len, int k) {
 	}
       } else if (arr[mid-1] < k && k < arr[mid]) {
 	if ((mid - 1) %2 == 0) {
-	  return mid -1;
+	  return (mid -1)/2;
 	} else {
 	  printf("\n shouldn't reach here %d < %d < %d", arr[mid-1], k,
 		 arr[mid]);
 	  return -1;
 	}
       } else if (k > arr[mid]) {
-	lb = mid;
+	lb = mid+1;
       } else if (k < arr[mid]) {
-	ub = mid;
+	ub = mid-1;
       }
     }
   }
@@ -127,7 +128,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
 
-  //modRowInfo[2*rank]-start row modRowInfo[2*rank+1]- end row
+  //modRowInfo[2*rank]->start row modRowInfo[2*rank+1]-> end row
   modRowInfo = (int *) malloc(sizeof(int)*2*numProcs);
   for (i = 0; i < numProcs; i++) {
     modRowInfo[i*2] = rowInfo[i];
@@ -148,24 +149,33 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     addToSet(bitColSet, myCSRMat->colInd[i]);
   }
   
+  MPI_Barrier(MPI_COMM_WORLD);
+  printf("\n*************************** ******************************\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+  
   //get the count of columns to receive from remote proc
   recvCount = sizeSet(bitColSet, setCapacity);
-  printf("rank: %d recvCount=%d", myRank, recvCount);
+  printf("\nrank: %d recvCount=%d", myRank, recvCount);
   
   //get vectr indices that we want to receive
   recvIdx = getSetElements(bitColSet, setCapacity);
-  printf("recvIdx: ");
+  printf("\nrecvIdx: ");
   dispArray(recvIdx, recvCount, myRank);
   
-  /*
+  
   //get the remote process that contain these vector elements
-  tempPtr = (int *) malloc(sieof(int)*numProcs);
-  tempProc = (int *) malloc(sieof(int)*numProcs);
+  tempPtr = (int *) malloc(sizeof(int)*numProcs);
+  tempProc = (int *) malloc(sizeof(int)*numProcs);
   for (i = 0; i < numProcs; i++) {
     tempPtr[i] = -1;
     tempProc[i] = -1;
   }
+
   
+
+  //printf("\n modRowInfo: ");
+  //dispArray(modRowInfo, 2*numProcs, myRank);
+
   j = -1;
   for (i = 0; i < recvCount; i++) {
     //search recvIdx[i] in modRowInfo, say get proc k
@@ -173,7 +183,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     k = modBinSearch(modRowInfo, 2*numProcs, recvIdx[i]);
 
     if (k == -1) {
-      printf("\n Couldn't find rank for %d", recvIdx[i]);
+      printf("\n rank:%d Couldn't find rank for %d", myRank, recvIdx[i]);
+    } else {
+      //printf("\n rank:%d foundRank:%d for %d", myRank, k, recvIdx[i]);
     }
 
     if (j == -1 || tempProc[j] != k) {
@@ -183,59 +195,84 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
       tempPtr[j] = i;
     }
   }
+  
+  /*
+  printf("\n tempProc: ");
+  dispArray(tempProc, numProcs, myRank);
 
+  printf("\n tempPtr: ");
+  dispArray(tempPtr, numProcs, myRank);
+  */
   //set the above information about receiving in bVecParams
   bVecParams->numToRecvProcs = j+1;
+  printf("\nRank: %d numToRecv: %d", myRank, bVecParams->numToRecvProcs);
 
   //set the procs from which elements of vector will be received
   bVecParams->toRecvProcs = (int *) malloc(sizeof(int) *
 					   bVecParams->numToRecvProcs);
-  memcpy(bVecParams->toRecvProcs, tempProc, bVecParams->numToRecvProcs);
-  printf(" toRecvProcs: ");
-  dispArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank);
 
+  memcpy(bVecParams->toRecvProcs, tempProc,
+	 sizeof(int)*(bVecParams->numToRecvProcs));
+  printf("\ntoRecvProcs: ");
+  dispArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank);
+  
   //set the pointer to elements that will be received from proc
   bVecParams->recvPtr = (int *) malloc(sizeof(int) *
 				       bVecParams->numToRecvProcs+1);
-  memcpy(bVecParams->recvPtr, tempPtr, bVecParams->numToRecvProcs);
+  memcpy(bVecParams->recvPtr, tempPtr, sizeof(int)*bVecParams->numToRecvProcs);
   //set last elements of recvptr for last proc
   bVecParams->recvPtr[bVecParams->numToRecvProcs] = recvCount;
+  printf("\nrecvPtr: ");
+  dispArray(bVecParams->recvPtr, bVecParams->numToRecvProcs+1, myRank);
 
   //initialize recvInd and recvBuf
   bVecParams->recvInd = (int *) malloc(sizeof(int) * recvCount);
-  bVecParams->recvBuf = (int *) malloc(sizeof(int) * recvCount);
+  bVecParams->recvBuf = (float *) malloc(sizeof(float) * recvCount);
 
   //initialize recvInd with columns/vector indices that proc needs
-  memcpy(bVecParams->recvInd, recvIdx, recvCount);
+  memcpy(bVecParams->recvInd, recvIdx, sizeof(int)*recvCount);
   printf(" recvInd: ");
   dispArray(bVecParams->recvInd, recvCount, myRank);
   
-  /*
+  
   //allocate memory for send and receive buffer
   sends = (int*) malloc(sizeof(int)*numProcs);
-  memset(sends, 0, numProcs);
+  memset(sends, 0, sizeof(int)*numProcs);
 
   receives = (int*) malloc(sizeof(int)*numProcs);
-  memset(receives, 0, numProcs);
-
+  memset(receives, 0, sizeof(int)*numProcs);
+  
   //initialize receives buffer with count of elements
   //it needs to receive from process
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     receives[bVecParams->toRecvProcs[i]] =
-      bVecParams->recvPtr[bVecParams->toRecvProcs[i+1]] -
-      bVecParams->recvPtr[bVecParams->toRecvProcs[i]]; 
+      bVecParams->recvPtr[i+1] -
+      bVecParams->recvPtr[i]; 
   }
 
-
+  
   //ALL-TO-ALL comm to let each processor know where to send 
   MPI_Alltoall(receives, 1, MPI_INT, sends, 1, MPI_INT, MPI_COMM_WORLD);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  printf("\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$   $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
+  MPI_Barrier(MPI_COMM_WORLD);
+
+
+
+  printf("\n receives: ");
+  dispArray(receives, numProcs, myRank);
+
+  printf("\n sends: ");
+  dispArray(sends, numProcs, myRank);
+  
 
   //now sends contain information how many elements we need to
   //send to each process 
 
   //get the number of processes we need to send info
   for (i = 0, j = 0; i < numProcs; i++) {
-    if (receives[i] != 0) {
+    if (sends[i] != 0) {
       j++;
     }
   }
@@ -247,27 +284,33 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 					   bVecParams->numToSendProcs);
   
   //number of elements to send 
-  sendCount = 0
+  sendCount = 0;
 
   //set the count of elements to send to processes
   bVecParams->sendPtr = (int *) malloc(sizeof(int) *
-				       bVecParams->numToSendProcs+ 1);
-  bVecParams->sendPtr[j] = 0;
+				       ((bVecParams->numToSendProcs)+ 1));
+  memset(bVecParams->sendPtr, 0, sizeof(int) *
+	 ((bVecParams->numToSendProcs)+ 1));
+
   for (i = 0, j = 1, k = 0; i < numProcs; i++) {
-    if (receives[i] != 0) {
-      bVecParams->sendPtr[j] = receives[i] + bVecParams->sendPtr[j];
-      sendCount += receives[i];
+    if (sends[i] != 0) {
+      bVecParams->sendPtr[j] = sends[i] + bVecParams->sendPtr[j-1];
+      //printf("\n rank:%d adding %d to sendPtr[%d]= %d", myRank, sends[i],
+      //     j, bVecParams->sendPtr[j]);
+      sendCount += sends[i];
       bVecParams->toSendProcs[k++] = i;
       j++;
     }
   }
-  printf("sendPtr: ");
-  dispArray(sendPtr, bVecParams->numToSendProcs+ 1, myRank);
+  printf("\nsendPtr: ");
+  dispArray(bVecParams->sendPtr, (bVecParams->numToSendProcs) + 1, myRank);
   
+  //printf("\nrank: %d sendCount: %d", myRank, sendCount);
+
   
   //allocate space for sendInd & sendBuf in bVecParams
   bVecParams->sendInd = (int *) malloc(sizeof(int)*sendCount);
-  bVecParams->sendBuf = (int *) malloc(sizeof(int)*sendCount);
+  bVecParams->sendBuf = (float *) malloc(sizeof(float)*sendCount);
 
   //at this point every processor knows what it needs to receive but not what
   //needs to send
@@ -296,41 +339,45 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   }
 
   //TODO: avoid below barrier or check for requests above
-  MPI_Barrier();
+  MPI_Barrier(MPI_COMM_WORLD);
 
-  printf("sendInd :");
-  dispArray(sendInd, sendCount, myRank);
-
+  printf("\nsendInd :");
+  dispArray(bVecParams->sendInd, sendCount, myRank);
+  
   //at this point each processor know what it needs to send in bVecParams->sendInd
 
   //copy the elements it needs to send in bVecParams->sendBuf
   for (i = 0, k = 0; i < bVecParams->numToSendProcs; i++) {
     for (j = bVecParams->sendPtr[i]; j < bVecParams->sendPtr[i+1]; j++) {
-      bVecParams->sendBuf[k++] = myVec[bVecParams->sendInd[j]];
+      //subtract indice of offset i.e. starting row held by the process
+      bVecParams->sendBuf[k++] = myVec[bVecParams->sendInd[j] - rowInfo[myRank]];
     }
   }
 
-  printf("sendBuf: ");
-  dispArray(sendBuf, sendCount, myRank);
-
+  printf("\nsendBuf: ");
+  dispFArray(bVecParams->sendBuf, sendCount, myRank);
+  
   //we know what we need to receive from other processors, issue non-blocking
   //receive operations for these
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     MPI_Irecv(bVecParams->recvBuf + bVecParams->recvPtr[i] ,
 	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
-	      MPI_INT, bVecParams->toRecvProcs[i], 100, MPI_COMM_WORLD,
+	      MPI_FLOAT, bVecParams->toRecvProcs[i], 100, MPI_COMM_WORLD,
 	      sendRequest + i);
   }
 
   //send appropriate local elements of b vector
-  for (i = 0; i < numToSendProcs; i++) {
+  for (i = 0; i < bVecParams->numToSendProcs; i++) {
+    //printf("\n rank:%d sending %d to %d", myRank, bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i], bVecParams->toSendProcs[i]);
     MPI_Send(bVecParams->sendBuf + bVecParams->sendPtr[i],
 	     bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
-	     MPI_INT, bVecParams->toSendProcs[i], 100, MPI_COMM_WORLD,);
+	     MPI_FLOAT, bVecParams->toSendProcs[i], 100, MPI_COMM_WORLD);
   }
-  */
-  
-  
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  printf("\nrecvBuf: ");
+  dispFArray(bVecParams->recvBuf, recvCount, myRank);
+    
 
   if (sends) {
     free(sends);
