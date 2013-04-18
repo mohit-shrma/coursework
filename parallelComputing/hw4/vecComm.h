@@ -10,6 +10,7 @@ void addToSet(int *set, int val);
 int isInSet(int *set, int val);
 int sizeSet(int *set, int capacity);
 int* getSetElements(int *set, int capacity);
-void prepareVectorComm(CSRMat* myCSRMat, BVecComParams *bVecParams);
+void prepareVectorComm(CSRMat  *myCSRMat, float *myVec,
+		       BVecComParams *bVecParams, int *rowInfo);
 
 #endif

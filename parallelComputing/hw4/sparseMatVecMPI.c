@@ -12,9 +12,7 @@
 #include "common.h"
 #include "io.h"
 #include "matComm.h"
-
-
-
+#include "vecComm.h"
 
 
 int main(int argc, char *argv[]) {
@@ -22,6 +20,7 @@ int main(int argc, char *argv[]) {
   char *matFileName, *vecFileName;
   int numProcs, myRank;
   CSRMat *csrMat, *myCSRMat;
+  BVecComParams *myBVecParams;
   float *bVec;
   int dim, nnzCount, *rowInfo, myRowCount;
   float *myVec;
@@ -40,18 +39,19 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
-  csrMat = (CSRMat *)0;
+  csrMat = (CSRMat *) 0;
   rowInfo = (int*) 0;
   myCSRMat = (CSRMat *) 0; 
-  bVec = (float *)0;
+  bVec = (float *) 0;
   myVec = (float *) 0;
+  myBVecParams = (BVecComParams *) 0;
 
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
+  myBVecParams = (BVecComParams *) malloc(sizeof(BVecComParams));
   rowInfo = (int*) malloc(sizeof(int)*2*numProcs);
   memset(rowInfo, 0, sizeof(int)*2*numProcs);
     
   printf("\n rank:%d numProcs:%d ", myRank, numProcs);
-
   
   //read sparse matrix and vector
   if (myRank == ROOT) {
@@ -72,16 +72,19 @@ int main(int argc, char *argv[]) {
   printf("\nrank:%d before matrix scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, &rowInfo);
   printf("\nlocal sparse mat rank:%d\n", myRank);
-  displSparseMat(myCSRMat, myRank);
+  //displSparseMat(myCSRMat, myRank);
   
 
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
   myVec = (float *) malloc(sizeof(float) * myRowCount);
-
+  /*
   printf("\nrank:%d before vector scatter\n", myRank);
   scatterVector(bVec, rowInfo, myVec);
   printf("\nlocal vec rank:%d\n", myRank);
   dispFArray(myVec, myRowCount, myRank);
+
+  prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
+  */
 
   /*
   if (rowInfo) {

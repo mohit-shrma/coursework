@@ -73,5 +73,8 @@ typedef struct {
   
 } BVecComParams;
 
+void init(BVecComParams bVecParams);
+
+void freeBVecComParams(BVecComParams bVecParams);
 
 #endif

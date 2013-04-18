@@ -187,8 +187,9 @@ float* readSparseVec(char* vecFileName, int dim) {
 }
 
 
-void dispArray(int *arr, int len) {
+void dispArray(int *arr, int len, int rank) {
   int i;
+  printf(" rank:%d ", rank);
   for (i = 0; i < len; i++) {
     printf("%d ", arr[i]);
   }

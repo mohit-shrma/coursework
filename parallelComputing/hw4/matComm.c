@@ -120,22 +120,22 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int **rowInfo) {
     }
     
     printf("\nRowCount: ");
-    dispArray(rowCount, numProcs);
+    dispArray(rowCount, numProcs, myRank);
 
     printf("ColCount: ");
-    dispArray(colCount, numProcs);
+    dispArray(colCount, numProcs, myRank);
 
     printf("dispRowPtr: ");
-    dispArray(dispRowPtr, numProcs);
+    dispArray(dispRowPtr, numProcs, myRank);
 
     printf("sendCountRowPtr: ");
-    dispArray(sendCountRowPtr, numProcs);
+    dispArray(sendCountRowPtr, numProcs, myRank);
 
     printf("dispColInd: ");
-    dispArray(dispColInd, numProcs);
+    dispArray(dispColInd, numProcs, myRank);
 
     printf("sendCountColInd: ");
-    dispArray(sendCountColInd, numProcs);
+    dispArray(sendCountColInd, numProcs, myRank);
 
   } else {
     MPI_Recv(&myNNZCount, 1, MPI_INT, ROOT, 100, MPI_COMM_WORLD, &status);

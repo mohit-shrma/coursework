@@ -13,7 +13,7 @@ void getDimNCount(char *vecFileName, int *dim, int *nnz);
 
 void displSparseMat(CSRMat *csrMat, int rank);
 
-void dispArray(int *arr, int len);
+void dispArray(int *arr, int len, int rank);
 
 void dispFArray(float *arr, int len, int rank);
 
