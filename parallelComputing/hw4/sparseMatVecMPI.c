@@ -99,9 +99,13 @@ int main(int argc, char *argv[]) {
 
   printf("\nlocal vec rank:%d\n", myRank);
   dispFArray(myVec, myRowCount, myRank);
-  
+
+  //communicate only required values of vector
   prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
-    
+
+  //perform multiplication with required values of vector
+
+  //gather the results of multiplication at root
 
   
   if (NULL != rowInfo) {
