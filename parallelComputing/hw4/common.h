@@ -76,5 +76,6 @@ typedef struct {
 void init(BVecComParams *bVecParams);
 
 void freeBVecComParams(BVecComParams *bVecParams);
-
+void initCSRMat(CSRMat *csrMat);
+void freeCSRMat(CSRMat *csrMat);
 #endif

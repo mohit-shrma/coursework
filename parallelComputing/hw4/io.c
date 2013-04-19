@@ -186,6 +186,26 @@ void readSparseVec(float *bVec, char* vecFileName, int dim) {
 }
 
 
+
+void logArray(int *arr, int len, int rank, FILE *logFile) {
+  int i;
+  fprintf(logFile, " rank:%d ", rank);
+  for (i = 0; i < len; i++) {
+    fprintf(logFile, "%d ", arr[i]);
+  }
+  fprintf(logFile,"\n");
+}
+
+
+void logFArray(float *arr, int len, int rank, FILE *logFile) {
+  int i;
+  for (i = 0; i < len; i++) {
+    fprintf(logFile, "\nrank=%d arr[%d]=%f ", rank, i,arr[i]);
+  }
+  fprintf(logFile, "\n");
+}
+
+
 void dispArray(int *arr, int len, int rank) {
   int i;
   printf(" rank:%d ", rank);

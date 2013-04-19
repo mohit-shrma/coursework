@@ -17,6 +17,10 @@ void dispArray(int *arr, int len, int rank);
 
 void dispFArray(float *arr, int len, int rank);
 
+void logArray(int *arr, int len, int rank, FILE *logFile);
+
+void logFArray(float *arr, int len, int rank, FILE *logFile);
+
 #endif
 
 

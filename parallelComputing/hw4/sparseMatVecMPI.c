@@ -39,21 +39,23 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
-  csrMat = (CSRMat *) 0;
-  rowInfo = (int*) 0;
-  myCSRMat = (CSRMat *) 0; 
-  bVec = (float *) 0;
-  myVec = (float *) 0;
-  myBVecParams = (BVecComParams *) 0;
+  csrMat = NULL;//(CSRMat *) 0;
+  rowInfo = NULL;//(int*) 0;
+  myCSRMat = NULL;//(CSRMat *) 0; 
+  bVec = NULL;//(float *) 0;
+  myVec = NULL;//(float *) 0;
+  myBVecParams = NULL;//(BVecComParams *) 0;
 
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
+  initCSRMat(myCSRMat);
+
   myBVecParams = (BVecComParams *) malloc(sizeof(BVecComParams));
   rowInfo = (int*) malloc(sizeof(int)*2*numProcs);
   memset(rowInfo, 0, sizeof(int)*2*numProcs);
     
   printf("\n rank:%d numProcs:%d ", myRank, numProcs);
   
-  //read sparse matrix and vector
+  //read sparse matrix
   if (myRank == ROOT) {
     //get dimension
     getDimNCount(matFileName, &dim, &nnzCount);
@@ -63,59 +65,64 @@ int main(int argc, char *argv[]) {
     printf("\n display full sparse mat rank:%d numProcs:%d\n", myRank,
 	   numProcs);
     displSparseMat(csrMat, myRank);
-    
-    //read the vector
-    bVec = (float* ) malloc(sizeof(float) * dim);
-    
-    printf("\n display full sparse mat rank:%d numProcs:%d\n", myRank,
-	   numProcs);
-    displSparseMat(csrMat, myRank);
-    
-    //readSparseVec(bVec, vecFileName, dim);
-    //printf("\n display sparse vector:");
-    //dispFArray(bVec, dim, myRank);
   } else {
     csrMat = (CSRMat *) malloc(sizeof(CSRMat));
+    initCSRMat(csrMat);
   }
-
   
   printf("\nrank:%d before matrix scatter\n", myRank);
-  scatterMatrix(csrMat, &myCSRMat, &rowInfo);
-
+  scatterMatrix(csrMat, &myCSRMat, rowInfo);
 
   printf("\nlocal sparse mat rank:%d\n", myRank);
   displSparseMat(myCSRMat, myRank);
+
   
-  /*
+  //read vector
+  if (myRank == ROOT) {
+    //read the vector
+    bVec = (float* ) malloc(sizeof(float) * dim);
+    memset(bVec, 0, sizeof(float)*dim);
+    readSparseVec(bVec, vecFileName, dim);
+    printf("\n display sparse vector:");
+    dispFArray(bVec, dim, myRank);
+  }
+
+ 
+  //allocate space for local part of vector
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
   myVec = (float *) malloc(sizeof(float) * myRowCount);
+ 
   
+  //scatter vector
   printf("\nrank:%d before vector scatter\n", myRank);
   scatterVector(bVec, rowInfo, myVec);
+
   printf("\nlocal vec rank:%d\n", myRank);
   dispFArray(myVec, myRowCount, myRank);
-  */
-  //prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
   
+  prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
+    
 
-  /*
-  if (rowInfo) {
+  
+  if (NULL != rowInfo) {
     free(rowInfo);
   }
 
-  if (myCSRMat) {
-    free(myCSRMat);
+  if (NULL != myCSRMat) {
+    freeCSRMat(myCSRMat);
   }
 
-  if (csrMat) {
-    free(csrMat);
+  if (NULL != csrMat) {
+    freeCSRMat(csrMat);
   }
   
-  if (bVec) {
+  if (NULL != bVec) {
     free(bVec);
   }
 
-  */
+  if (NULL != myVec) {
+    free(myVec);
+  }
   
   MPI_Finalize();
 

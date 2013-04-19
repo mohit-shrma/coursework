@@ -17,6 +17,31 @@ void init(BVecComParams *bVecParams) {
 }
 
 
+void initCSRMat(CSRMat *csrMat) {
+  if (NULL != csrMat) {
+    csrMat->rowPtr = NULL;
+    csrMat->colInd = NULL;
+    csrMat->values = NULL;
+  }  
+}
+
+
+void freeCSRMat(CSRMat *csrMat) {
+  if (NULL != csrMat) {
+    if (csrMat->rowPtr) {
+      free(csrMat->rowPtr);
+    }
+    if (csrMat->colInd) {
+      free(csrMat->colInd);
+    }
+    if (csrMat->values) {
+      free(csrMat->values);
+    }
+    free(csrMat);
+  }
+}
+
+
 void freeBVecComParams(BVecComParams *bVecParams) {
   if (bVecParams != (BVecComParams*) 0) {
     free(bVecParams->toSendProcs);
