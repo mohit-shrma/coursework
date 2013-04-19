@@ -74,6 +74,8 @@ void getDimNCount(char *matFileName, int *dim, int *nnz) {
 }
 
 
+
+
 //display sparse matrix
 void displSparseMat(CSRMat *csrMat, int rank) {
   int i, j;
@@ -93,6 +95,27 @@ void displSparseMat(CSRMat *csrMat, int rank) {
     }
   }
   printf("\n");
+}
+
+
+void logSparseMat(CSRMat *csrMat, int rank, FILE* myLogFile) {
+  int i, j;
+  
+  int startValInd, endValInd;
+
+  fprintf(myLogFile, "\nmyCSRMat Rank:%d numRows:%d", rank, csrMat->numRows);
+  fprintf(myLogFile, "\nmyCSRMat Rank:%d nnz count:%d", rank, csrMat->nnzCount);
+  fprintf(myLogFile, "\nmyCSRMat Rank: %d rowPtr: ", rank);
+  logArray(csrMat->rowPtr, csrMat->numRows+1, rank, myLogFile);
+  
+  for (i = 0; i < csrMat->numRows; i++) {
+    startValInd = csrMat->rowPtr[i] - csrMat->rowPtr[0];
+    endValInd = csrMat->rowPtr[i+1] - csrMat->rowPtr[0];
+    for (j = startValInd; j < endValInd; j++) {
+      //fprintf(myLogFile, "\nrank=%d\t%d\t%d\t%f\t%d", rank, i, csrMat->colInd[j], csrMat->values[j], j);
+    }
+  }
+  fprintf(myLogFile, "\n");
 }
 
 

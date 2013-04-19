@@ -25,6 +25,9 @@ int main(int argc, char *argv[]) {
   int dim, nnzCount, *rowInfo, myRowCount;
   float *myVec;
 
+  FILE *myLogFile;
+  char strTemp[100];
+
   MPI_Init(&argc, &argv);
   
   if (argc <= 2) {
@@ -52,8 +55,13 @@ int main(int argc, char *argv[]) {
   myBVecParams = (BVecComParams *) malloc(sizeof(BVecComParams));
   rowInfo = (int*) malloc(sizeof(int)*2*numProcs);
   memset(rowInfo, 0, sizeof(int)*2*numProcs);
-    
-  printf("\n rank:%d numProcs:%d ", myRank, numProcs);
+  
+  //initialize the log file
+  sprintf(strTemp, "%d", myRank);
+  strcat(strTemp, "_spMatVec.log");
+  myLogFile = fopen(strTemp, "w");
+
+  fprintf(myLogFile, "\n rank:%d numProcs:%d ", myRank, numProcs);
   
   //read sparse matrix
   if (myRank == ROOT) {
@@ -62,20 +70,20 @@ int main(int argc, char *argv[]) {
     
     //read the matrix
     csrMat = readSparseMat(matFileName, dim, nnzCount);
-    printf("\n display full sparse mat rank:%d numProcs:%d\n", myRank,
+    fprintf(myLogFile, "\n display full sparse mat rank:%d numProcs:%d\n", myRank,
 	   numProcs);
-    displSparseMat(csrMat, myRank);
+    logSparseMat(csrMat, myRank, myLogFile);
   } else {
     csrMat = (CSRMat *) malloc(sizeof(CSRMat));
     initCSRMat(csrMat);
   }
-  
-  printf("\nrank:%d before matrix scatter\n", myRank);
+  /*
+  fprintf(myLogFile, "\nrank:%d before matrix scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, rowInfo);
-
-  printf("\nlocal sparse mat rank:%d\n", myRank);
-  displSparseMat(myCSRMat, myRank);
-
+  
+  fprintf(myLogFile, "\nlocal sparse mat rank:%d\n", myRank);
+  logSparseMat(myCSRMat, myRank, myLogFile);
+  */
   
   //read vector
   if (myRank == ROOT) {
@@ -83,31 +91,32 @@ int main(int argc, char *argv[]) {
     bVec = (float* ) malloc(sizeof(float) * dim);
     memset(bVec, 0, sizeof(float)*dim);
     readSparseVec(bVec, vecFileName, dim);
-    printf("\n display sparse vector:");
-    dispFArray(bVec, dim, myRank);
+    fprintf(myLogFile, "\n display sparse vector:");
+    logFArray(bVec, dim, myRank, myLogFile);
   }
 
  
   //allocate space for local part of vector
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
+  fprintf(myLogFile, "\nrank: %d rowCount:%d", myRank, myRowCount);
   myVec = (float *) malloc(sizeof(float) * myRowCount);
  
   
   //scatter vector
-  printf("\nrank:%d before vector scatter\n", myRank);
+  fprintf(myLogFile, "\nrank:%d before vector scatter\n", myRank);
   scatterVector(bVec, rowInfo, myVec);
 
-  printf("\nlocal vec rank:%d\n", myRank);
-  dispFArray(myVec, myRowCount, myRank);
-
+  fprintf(myLogFile, "\nlocal vec rank:%d\n", myRank);
+  logFArray(myVec, myRowCount, myRank, myLogFile);
+  
   //communicate only required values of vector
-  prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
-
+  //prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
+  
   //perform multiplication with required values of vector
 
   //gather the results of multiplication at root
 
-  
+    
   if (NULL != rowInfo) {
     free(rowInfo);
   }
@@ -127,6 +136,8 @@ int main(int argc, char *argv[]) {
   if (NULL != myVec) {
     free(myVec);
   }
+
+  fclose(myLogFile);
   
   MPI_Finalize();
 
