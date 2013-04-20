@@ -221,11 +221,12 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
   
   //set the pointer to elements that will be received from proc
-  bVecParams->recvPtr = (int *) malloc(sizeof(int) *
-				       bVecParams->numToRecvProcs+1);
-  memcpy(bVecParams->recvPtr, tempPtr, sizeof(int)*bVecParams->numToRecvProcs);
+  bVecParams->recvPtr = (int *) malloc(sizeof(int) * (bVecParams->numToRecvProcs+1));
+  memset(bVecParams->recvPtr, 0, sizeof(int) * (bVecParams->numToRecvProcs+1));
+  memcpy(bVecParams->recvPtr, tempPtr, sizeof(int)*(bVecParams->numToRecvProcs));
   //set last elements of recvptr for last proc
   bVecParams->recvPtr[bVecParams->numToRecvProcs] = recvCount;
+
   fprintf(myLogFile, "\nrecvPtr: ");
   logArray(bVecParams->recvPtr, bVecParams->numToRecvProcs+1, myRank, myLogFile);
 

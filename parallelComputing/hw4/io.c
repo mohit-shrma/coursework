@@ -143,7 +143,7 @@ CSRMat* readSparseMat(char *matFileName, int dim, int nnz) {
     csrMat->numRows = dim;
     csrMat->numCols = dim;
     
-    csrMat->rowPtr = (int *) malloc(sizeof(int) * dim);
+    csrMat->rowPtr = (int *) malloc(sizeof(int) * (dim+1));
     csrMat->colInd = (int *) malloc(sizeof(int) * nnz);
     csrMat->values = (float *) malloc(sizeof(float) * nnz);
     

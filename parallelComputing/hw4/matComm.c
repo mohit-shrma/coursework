@@ -328,7 +328,7 @@ void gatherVector(float *localProdVec, int *rowInfo, float *prodVec) {
     for (i = 0; i < numProcs; i++) {
       //get offset and count of rows to be received from proc i
       displs[i] = rowInfo[i];
-      recvCount[i] = rowInfo[i+numProcs] = rowInfo[i] - 1;
+      recvCount[i] = rowInfo[i+numProcs] - rowInfo[i] + 1;
     }
   }
 

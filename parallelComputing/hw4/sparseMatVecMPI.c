@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
   myVec = NULL;//(float *) 0;
   myBVecParams = NULL;//(BVecComParams *) 0;
   locProdVec = NULL;
+  prodVec = NULL;
 
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
   initCSRMat(myCSRMat);
@@ -94,8 +95,10 @@ int main(int argc, char *argv[]) {
   if (myRank == ROOT) {
     //read the vector
     bVec = (float* ) malloc(sizeof(float) * dim);
+    
     // also alllocate space for product vector, uncomment it as will use bVec
     prodVec = (float *) malloc(sizeof(float) * dim);
+  
     memset(bVec, 0, sizeof(float)*dim);
     readSparseVec(bVec, vecFileName, dim);
     fprintf(myLogFile, "\n display sparse vector:");
@@ -128,10 +131,10 @@ int main(int argc, char *argv[]) {
   //perform multiplication with required values of vector
   locProdVec = (float*) malloc(sizeof(float) * myRowCount);
   memset(locProdVec, 0, sizeof(float) * myRowCount);
-  computeLocalProd(myCSRMat, myBVecParams, prodVec, locProdVec, myRank);
+  computeLocalProd(myCSRMat, myBVecParams, myVec, locProdVec, myRank);
 
   fprintf(myLogFile, "\nrank:%d after local prod gen\n", myRank);
-  /*
+  
   //gather the results of multiplication at root, overwrite myVec with results
   gatherVector(locProdVec, rowInfo, prodVec);
 
@@ -143,17 +146,20 @@ int main(int argc, char *argv[]) {
     sprintf(strTemp, "%d", myRank);
     strcat(strTemp, "_mpi_res.log");
     mpiResFile = fopen(strTemp, "w");
-    fprintf(myLogFile, "writing to mpi prod file");
+    fprintf(myLogFile, "\nwriting to mpi prod file");
     //write down the results of mpi parallel multiplication
     for (i = 0; i < dim; i++) {
       fprintf(mpiResFile, "%f\n", prodVec[i]);
     }
-    fprintf(myLogFile, "written to mpi prod file");
+    fprintf(myLogFile, "\nwritten to mpi prod file");
     fclose(mpiResFile);
   }
   
-
+  
   if (myRank == ROOT) {
+    //reset prod vec which wil contain serial results
+    memset(prodVec, 0, (sizeof(float))*dim);
+
     //perform serial multiplication at root
     computeSerialProd(csrMat, bVec, prodVec);
 
@@ -161,15 +167,15 @@ int main(int argc, char *argv[]) {
     sprintf(strTemp, "%d", myRank);
     strcat(strTemp, "_non_mpi_res.log");
     serResFile = fopen(strTemp, "w");
-    fprintf(myLogFile, "writing to serial file");
+    fprintf(myLogFile, "\nwriting to serial file");
     //write down the results of serial multiplication
     for (i = 0; i < dim; i++) {
       fprintf(serResFile, "%f\n", prodVec[i]);
     }
-    fprintf(myLogFile, "written to serial file");
+    fprintf(myLogFile, "\nwritten to serial file");
     fclose(serResFile);
   }
-  */
+  
 
   if (NULL != rowInfo) {
     free(rowInfo);
