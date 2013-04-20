@@ -135,8 +135,6 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   strcat(strTemp, "_vecComm.log");
   myLogFile = fopen(strTemp, "w");
 
-
-
   //modRowInfo[2*rank]->start row modRowInfo[2*rank+1]-> end row
   modRowInfo = (int *) malloc(sizeof(int)*2*numProcs);
   for (i = 0; i < numProcs; i++) {
@@ -158,19 +156,17 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     addToSet(bitColSet, myCSRMat->colInd[i]);
   }
   
-  MPI_Barrier(MPI_COMM_WORLD);
   fprintf(myLogFile, "\n*************************** ******************************\n");
-  MPI_Barrier(MPI_COMM_WORLD);
   
   //get the count of columns to receive from remote proc
   recvCount = sizeSet(bitColSet, setCapacity);
+  bVecParams->recvCount = recvCount;
   fprintf(myLogFile, "\nrank: %d recvCount=%d", myRank, recvCount);
   
   //get vectr indices that we want to receive
   recvIdx = getSetElements(bitColSet, setCapacity);
   fprintf(myLogFile, "\nrecvIdx: ");
   logArray(recvIdx, recvCount, myRank, myLogFile);
-  
   
   //get the remote process that contain these vector elements
   tempPtr = (int *) malloc(sizeof(int)*numProcs);
@@ -179,7 +175,6 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     tempPtr[i] = -1;
     tempProc[i] = -1;
   }
-
   
 
   fprintf(myLogFile, "\n modRowInfo: ");
@@ -240,10 +235,11 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   //initialize recvInd with columns/vector indices that proc needs
   memcpy(bVecParams->recvInd, recvIdx, sizeof(int)*recvCount);
-  fprintf(myLogFile, " recvInd: ");
+  fprintf(myLogFile, "\n recvCount:%d recvInd: ", recvCount);
   logArray(bVecParams->recvInd, recvCount, myRank, myLogFile);
   
-  
+  memset(bVecParams->recvBuf, 0, sizeof(float) * recvCount);
+
   //allocate memory for send and receive buffer
   sends = (int*) malloc(sizeof(int)*numProcs);
   memset(sends, 0, sizeof(int)*numProcs);
@@ -263,10 +259,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //ALL-TO-ALL comm to let each processor know where to send 
   MPI_Alltoall(receives, 1, MPI_INT, sends, 1, MPI_INT, MPI_COMM_WORLD);
 
-  MPI_Barrier(MPI_COMM_WORLD);
+
   fprintf(myLogFile, "\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$   $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
   MPI_Barrier(MPI_COMM_WORLD);
-
 
 
   fprintf(myLogFile, "\n receives: ");
@@ -311,15 +306,18 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
       j++;
     }
   }
-  fprintf(myLogFile, "\nsendPtr: ");
+  
+  bVecParams->sendCount = sendCount;
+
+  fprintf(myLogFile, "\nnumSendProcs = %d sendPtr: ", bVecParams->numToSendProcs);
   logArray(bVecParams->sendPtr, (bVecParams->numToSendProcs) + 1, myRank, myLogFile);
   
-  //fprintf(myLogFile, "\nrank: %d sendCount: %d", myRank, sendCount);
-
+  fprintf(myLogFile, "\nrank: %d sendCount: %d", myRank, sendCount);
   
   //allocate space for sendInd & sendBuf in bVecParams
   bVecParams->sendInd = (int *) malloc(sizeof(int)*sendCount);
   bVecParams->sendBuf = (float *) malloc(sizeof(float)*sendCount);
+
 
   //at this point every processor knows what it needs to receive but not what
   //needs to send
@@ -328,7 +326,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   
   //initialize MPI_Request
   sendRequest = (MPI_Request*) malloc(sizeof(MPI_Request)
-				      * bVecParams->numToRecvProcs);
+				      * numProcs);
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     MPI_Isend(bVecParams->recvInd + bVecParams->recvPtr[i] ,
 	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
@@ -339,7 +337,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //perform a non-blocking receive of columns/indices needed by another process
   //initialize receive MPI_Request
   recvRequest = (MPI_Request*) malloc(sizeof(MPI_Request)
-				      * bVecParams->numToSendProcs);
+				      * numProcs);
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
     MPI_Irecv(bVecParams->sendInd + bVecParams->sendPtr[i] ,
 	      bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
@@ -365,29 +363,56 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   fprintf(myLogFile, "\nsendBuf: ");
   logFArray(bVecParams->sendBuf, sendCount, myRank, myLogFile);
-  
+
+  fprintf(myLogFile, "\nnumToRecvProcs: %d", bVecParams->numToRecvProcs);
+  logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
+  fflush(myLogFile);  
+
   //we know what we need to receive from other processors, issue non-blocking
   //receive operations for these
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
+    fprintf(myLogFile, "\nIrecv from proc: %d count: %d\n",
+	    bVecParams->toRecvProcs[i],
+	    bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i]);
+    
+    logFArray(bVecParams->recvBuf + bVecParams->recvPtr[i],
+	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
+	      myRank, myLogFile);
+
     MPI_Irecv(bVecParams->recvBuf + bVecParams->recvPtr[i] ,
 	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
 	      MPI_FLOAT, bVecParams->toRecvProcs[i], 100, MPI_COMM_WORLD,
 	      sendRequest + i);
+
+    fflush(myLogFile);
   }
+  
+  fprintf(myLogFile, "\nAfter Irecv: ");
+  fflush(myLogFile);  
+
 
   //send appropriate local elements of b vector
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
-    //fprintf(myLogFile, "\n rank:%d sending %d to %d", myRank, bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i], bVecParams->toSendProcs[i]);
+    fprintf(myLogFile, "\n rank:%d sending %d to %d", myRank,
+	    bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
+	    bVecParams->toSendProcs[i]);
+    logFArray(bVecParams->sendBuf + bVecParams->sendPtr[i],
+	      bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
+	      myRank, myLogFile);
+    fflush(myLogFile);  
     MPI_Send(bVecParams->sendBuf + bVecParams->sendPtr[i],
 	     bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
 	     MPI_FLOAT, bVecParams->toSendProcs[i], 100, MPI_COMM_WORLD);
   }
+  
+  fprintf(myLogFile, "\nAfter Isend: ");
+  fflush(myLogFile);  
 
   MPI_Barrier(MPI_COMM_WORLD);
   fprintf(myLogFile, "\nrecvBuf: ");
   logFArray(bVecParams->recvBuf, recvCount, myRank, myLogFile);
-    
-
+  fflush(myLogFile);  
+  
   if (sends) {
     free(sends);
   }

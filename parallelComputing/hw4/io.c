@@ -74,8 +74,6 @@ void getDimNCount(char *matFileName, int *dim, int *nnz) {
 }
 
 
-
-
 //display sparse matrix
 void displSparseMat(CSRMat *csrMat, int rank) {
   int i, j;
@@ -207,7 +205,6 @@ void readSparseVec(float *bVec, char* vecFileName, int dim) {
   }
   fclose(vecFile);
 }
-
 
 
 void logArray(int *arr, int len, int rank, FILE *logFile) {

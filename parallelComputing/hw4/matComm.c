@@ -47,13 +47,20 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   sendCountColInd = NULL;
 
 
-  MPI_Bcast(rowInfo, 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
-
-
   //initialize the log file
   sprintf(strTemp, "%d", myRank);
   strcat(strTemp, "_scatterMat.log");
   myLogFile = fopen(strTemp, "w");
+
+  fprintf(myLogFile, "\n before bcast row infos");
+
+  //send the row info to procs
+  MPI_Bcast(rowInfo, 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
+  
+  fprintf(myLogFile, "\n after bcast row infos");
+
+  fprintf(myLogFile, "\nrowInfo: ");
+  logArray(rowInfo, 2*numProcs, myRank, myLogFile);
     
   fprintf(myLogFile,"\nrank:%d divide indices", myRank);
 
@@ -92,9 +99,15 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   }
   
   
+  fprintf(myLogFile, "\n before bcast row infos");
+
   //send the row info to procs
   MPI_Bcast(rowInfo, 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
   
+  fprintf(myLogFile, "\n after bcast row infos");
+
+  fprintf(myLogFile, "\nrowInfo: ");
+  logArray(rowInfo, 2*numProcs, myRank, myLogFile);
   
   //communicate matrix values to proces
   if (myRank == ROOT) {
@@ -168,8 +181,6 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
     MPI_Recv(&myNNZCount, 1, MPI_INT, ROOT, 100, MPI_COMM_WORLD, &status);
   }
   
-
-  
   fprintf(myLogFile,"\nRank: %d nnzcount:%d ", myRank, myNNZCount);
   fprintf(myLogFile,"\nrowInfo[%d] = %d rowInfo[%d] = %d ", myRank,
 	  (rowInfo)[myRank], myRank+numProcs, (rowInfo)[myRank+numProcs]);
@@ -194,7 +205,9 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   (*myCSRMat)->values = (float *) malloc(sizeof(float) * myNNZCount);
   memset((*myCSRMat)->values, 0, sizeof(float) * myNNZCount);
 
-  
+  fprintf(myLogFile, "\n prepared csr mat structure ");
+  logSparseMat(*myCSRMat, myRank, myLogFile);
+
   //communicate marked values to procs
   MPI_Scatterv(csrMat->rowPtr, sendCountRowPtr, dispRowPtr, MPI_INT,
 	       (*myCSRMat)->rowPtr, (*myCSRMat)->numRows, MPI_INT, ROOT,
@@ -206,8 +219,10 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
 	       (*myCSRMat)->values, (*myCSRMat)->nnzCount, MPI_FLOAT, ROOT,
 	       MPI_COMM_WORLD);
   
+  fprintf(myLogFile, "\n performed scatter of marked values");
+
   (*myCSRMat)->rowPtr[(*myCSRMat)->numRows] = (*myCSRMat)->rowPtr[0] + myNNZCount;
-  
+  logSparseMat(*myCSRMat, myRank, myLogFile);
   
   //free allocated mems
   if (rowCount && myRank == ROOT) {
@@ -215,21 +230,28 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
       rowCount = NULL;
   }
 
+  fprintf(myLogFile, "\n free row count");
+
   if (colCount && myRank == ROOT) {
     free(colCount);
     colCount = NULL;
   }
+
+  fprintf(myLogFile, "\n free col count");
 
   if (dispRowPtr && myRank == ROOT) {
       free(dispRowPtr);
       dispRowPtr = NULL;
   }
 
+  fprintf(myLogFile, "\n free dispRowPtr");
 
   if (sendCountRowPtr && myRank == ROOT) {
     free(sendCountRowPtr);
     sendCountRowPtr = NULL;
   }
+
+  fprintf(myLogFile, "\n free sendCountRowPtr");
 
 
   if (dispColInd && myRank == ROOT) {
@@ -237,14 +259,19 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
     dispColInd = NULL;
   }
 
+  fprintf(myLogFile, "\n free dispColInd");
+
 
   if (sendCountColInd && myRank == ROOT) {
     free(sendCountColInd);
     sendCountColInd = NULL;
   }
 
-  fclose(myLogFile);
+  fprintf(myLogFile, "\n free sendCountColInd");
+
   fprintf(myLogFile,"\n exiting matcomm rank: %d", myRank);
+  fclose(myLogFile);
+
  
 }
 
@@ -254,29 +281,64 @@ void scatterVector(float *vec, int *rowInfo, float *myVec) {
   int myRank, numProcs;
   int i;
 
-  int *dispRowPtr, *sendCountRowPtr;
+  int *displs, *sendCount;
   int myRowCount;
 
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
-  dispRowPtr = (int *) malloc(sizeof(int) * numProcs);
-  sendCountRowPtr = (int *) malloc(sizeof(int) * numProcs);
+  displs = (int *) malloc(sizeof(int) * numProcs);
+  sendCount = (int *) malloc(sizeof(int) * numProcs);
 
   if (myRank == ROOT) {
 
     for (i = 0; i < numProcs; i++) {
       //get offset and count of rows to be send to proc i
-      dispRowPtr[i] = rowInfo[i];
-      sendCountRowPtr[i] = rowInfo[i+numProcs] - rowInfo[i] + 1;
+      displs[i] = rowInfo[i];
+      sendCount[i] = rowInfo[i+numProcs] - rowInfo[i] + 1;
     }
   }
 
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
 
   //communicate marked values to procs
-  MPI_Scatterv(vec, sendCountRowPtr, dispRowPtr, MPI_FLOAT,
+  MPI_Scatterv(vec, sendCount, displs, MPI_FLOAT,
 	       myVec, myRowCount, MPI_FLOAT, ROOT,
 	       MPI_COMM_WORLD);
 
+  free(displs);
+  free(sendCount);
+}
+
+
+void gatherVector(float *localProdVec, int *rowInfo, float *prodVec) {
+  int myRank, numProcs;
+  int i;
+
+  int *displs, *recvCount;
+  int myRowCount;
+
+  MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
+  displs = (int *) malloc(sizeof(int) * numProcs);
+  recvCount = (int *) malloc(sizeof(int) * numProcs);
+
+  if (myRank == ROOT) {
+    for (i = 0; i < numProcs; i++) {
+      //get offset and count of rows to be received from proc i
+      displs[i] = rowInfo[i];
+      recvCount[i] = rowInfo[i+numProcs] = rowInfo[i] - 1;
+    }
+  }
+
+  myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
+
+  //gather this computed vector at root
+  MPI_Gatherv(localProdVec, myRowCount, MPI_FLOAT,
+	      prodVec, recvCount, displs,
+	      MPI_FLOAT, ROOT, MPI_COMM_WORLD);
+
+  free(displs);
+  free(recvCount);
 }

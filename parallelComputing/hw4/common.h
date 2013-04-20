@@ -31,7 +31,6 @@ typedef struct {
   int origFirstRow, origLastRow;
 } CSRMat;
 
-
 //store required parameters for communication of b vector
 typedef struct {
   //num of procs to send
@@ -43,6 +42,12 @@ typedef struct {
   int numToRecvProcs;
   //ranks of procs to receive from
   int *toRecvProcs;
+
+  //num of values sent
+  int sendCount;
+
+  //num of values received
+  int recvCount;
   
   //store the indices of elements of b in sendInd to send to other procs, i.e.
   //send to ith neighbor elements b/w: sendInd[sendPtr[i]]
@@ -53,7 +58,6 @@ typedef struct {
   //elements of b vector to send to other procs, size equal to no. of elements
   //required to send all other procs
   int *sendInd;
-
   
   //store the indices of elements of b in recvInd to recv from other procs, i.e.
   //recv from ith neighbor elements b/w: recvInd[recvPtr[i]]
@@ -78,4 +82,6 @@ void init(BVecComParams *bVecParams);
 void freeBVecComParams(BVecComParams *bVecParams);
 void initCSRMat(CSRMat *csrMat);
 void freeCSRMat(CSRMat *csrMat);
+int binIndSearch(int *arr, int len , int val);
+
 #endif

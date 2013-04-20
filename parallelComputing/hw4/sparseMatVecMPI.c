@@ -1,31 +1,33 @@
 /*
  * implements sparse matrix vector multiplication A*b = x
  */
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <mpi.h>
 
-
 #include "common.h"
 #include "io.h"
 #include "matComm.h"
 #include "vecComm.h"
-
+#include "mult.h"
 
 int main(int argc, char *argv[]) {
-  
+
   char *matFileName, *vecFileName;
-  int numProcs, myRank;
+  int numProcs, myRank, i;
   CSRMat *csrMat, *myCSRMat;
   BVecComParams *myBVecParams;
   float *bVec;
   int dim, nnzCount, *rowInfo, myRowCount;
-  float *myVec;
+  float *myVec, *locProdVec;
 
-  FILE *myLogFile;
+  //TODO: remove this after verification as can replace myVec with 
+  //product itself
+  float *prodVec;
+
+  FILE *myLogFile, *mpiResFile, *serResFile;
+  
   char strTemp[100];
 
   MPI_Init(&argc, &argv);
@@ -35,7 +37,6 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   
-
   matFileName = argv[1];
   vecFileName = argv[2];
 
@@ -48,6 +49,7 @@ int main(int argc, char *argv[]) {
   bVec = NULL;//(float *) 0;
   myVec = NULL;//(float *) 0;
   myBVecParams = NULL;//(BVecComParams *) 0;
+  locProdVec = NULL;
 
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
   initCSRMat(myCSRMat);
@@ -70,25 +72,30 @@ int main(int argc, char *argv[]) {
     
     //read the matrix
     csrMat = readSparseMat(matFileName, dim, nnzCount);
-    fprintf(myLogFile, "\n display full sparse mat rank:%d numProcs:%d\n", myRank,
-	   numProcs);
+    fprintf(myLogFile, "\n display full sparse mat rank:%d numProcs:%d\n",
+	    myRank, numProcs);
     logSparseMat(csrMat, myRank, myLogFile);
+
   } else {
     csrMat = (CSRMat *) malloc(sizeof(CSRMat));
     initCSRMat(csrMat);
   }
-  /*
+  
   fprintf(myLogFile, "\nrank:%d before matrix scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, rowInfo);
   
   fprintf(myLogFile, "\nlocal sparse mat rank:%d\n", myRank);
   logSparseMat(myCSRMat, myRank, myLogFile);
-  */
+
+  fprintf(myLogFile, "\n rowInfo: ");
+  logArray(rowInfo, numProcs*2, myRank, myLogFile);
   
   //read vector
   if (myRank == ROOT) {
     //read the vector
     bVec = (float* ) malloc(sizeof(float) * dim);
+    // also alllocate space for product vector, uncomment it as will use bVec
+    prodVec = (float *) malloc(sizeof(float) * dim);
     memset(bVec, 0, sizeof(float)*dim);
     readSparseVec(bVec, vecFileName, dim);
     fprintf(myLogFile, "\n display sparse vector:");
@@ -100,46 +107,109 @@ int main(int argc, char *argv[]) {
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
   fprintf(myLogFile, "\nrank: %d rowCount:%d", myRank, myRowCount);
   myVec = (float *) malloc(sizeof(float) * myRowCount);
- 
-  
+
+
   //scatter vector
   fprintf(myLogFile, "\nrank:%d before vector scatter\n", myRank);
   scatterVector(bVec, rowInfo, myVec);
 
   fprintf(myLogFile, "\nlocal vec rank:%d\n", myRank);
   logFArray(myVec, myRowCount, myRank, myLogFile);
-  
+
+
+  fprintf(myLogFile, "\nrank:%d before vector comm\n", myRank);
+  fflush(myLogFile);
   //communicate only required values of vector
-  //prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
+  prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
+  
+  
+  fprintf(myLogFile, "\nrank:%d after vector comm\n", myRank);
   
   //perform multiplication with required values of vector
+  locProdVec = (float*) malloc(sizeof(float) * myRowCount);
+  memset(locProdVec, 0, sizeof(float) * myRowCount);
+  computeLocalProd(myCSRMat, myBVecParams, prodVec, locProdVec, myRank);
 
-  //gather the results of multiplication at root
+  fprintf(myLogFile, "\nrank:%d after local prod gen\n", myRank);
+  /*
+  //gather the results of multiplication at root, overwrite myVec with results
+  gatherVector(locProdVec, rowInfo, prodVec);
 
-    
+  fprintf(myLogFile, "\n after gathering computed subProduct across nodes");
+ 
+  if (myRank == ROOT) {
+    //write the resulting mpi parallel product vector to a file
+    //initialize the result file for the mpi version
+    sprintf(strTemp, "%d", myRank);
+    strcat(strTemp, "_mpi_res.log");
+    mpiResFile = fopen(strTemp, "w");
+    fprintf(myLogFile, "writing to mpi prod file");
+    //write down the results of mpi parallel multiplication
+    for (i = 0; i < dim; i++) {
+      fprintf(mpiResFile, "%f\n", prodVec[i]);
+    }
+    fprintf(myLogFile, "written to mpi prod file");
+    fclose(mpiResFile);
+  }
+  
+
+  if (myRank == ROOT) {
+    //perform serial multiplication at root
+    computeSerialProd(csrMat, bVec, prodVec);
+
+    //initialize the result file for serial version
+    sprintf(strTemp, "%d", myRank);
+    strcat(strTemp, "_non_mpi_res.log");
+    serResFile = fopen(strTemp, "w");
+    fprintf(myLogFile, "writing to serial file");
+    //write down the results of serial multiplication
+    for (i = 0; i < dim; i++) {
+      fprintf(serResFile, "%f\n", prodVec[i]);
+    }
+    fprintf(myLogFile, "written to serial file");
+    fclose(serResFile);
+  }
+  */
+
   if (NULL != rowInfo) {
     free(rowInfo);
+    fprintf(myLogFile, "\n free rowInfo");
   }
 
   if (NULL != myCSRMat) {
     freeCSRMat(myCSRMat);
+    fprintf(myLogFile, "\n free myCSRMat");
   }
 
   if (NULL != csrMat) {
     freeCSRMat(csrMat);
+    fprintf(myLogFile, "\n free csrmat");
   }
   
   if (NULL != bVec) {
     free(bVec);
+    fprintf(myLogFile, "\n free bvec");
   }
 
   if (NULL != myVec) {
     free(myVec);
+    fprintf(myLogFile, "\n free myVec\n");
+  }
+
+  if (NULL != locProdVec) {
+    free(locProdVec);
+    fprintf(myLogFile, "\n free locProdVec\n");
+  }
+
+  if (NULL != prodVec) {
+    free(prodVec);
+    fprintf(myLogFile, "\n free prodVec\n");
   }
 
   fclose(myLogFile);
-  
+
   MPI_Finalize();
 
   return 0;
 }
+

@@ -1,6 +1,30 @@
 #include "common.h"
 #include <stdlib.h>
 
+
+int binIndSearch(int *arr, int len , int val) {
+  int ub, lb, mid;
+  
+  lb = 0;
+  ub = len-1;
+
+  while (lb <= ub) {
+    mid = (ub+lb)/2;
+    if (arr[mid] == val) {
+      return mid;
+    } else {
+      if (val < arr[mid]) {
+	ub = mid -1;
+      } else {
+	lb = mid + 1;
+      }
+    }
+  }
+  
+  return -1;
+}
+
+
 void init(BVecComParams *bVecParams) {
   if (bVecParams != (BVecComParams*) 0) {
     bVecParams->numToSendProcs = -1;
