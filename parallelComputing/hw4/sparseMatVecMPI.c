@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
+  //set pointers to NULL
   csrMat = NULL;//(CSRMat *) 0;
   rowInfo = NULL;//(int*) 0;
   myCSRMat = NULL;//(CSRMat *) 0; 
@@ -77,9 +78,9 @@ int main(int argc, char *argv[]) {
   }
 
 
-  
   //read sparse matrix
   if (myRank == ROOT) {
+
     //get dimension
     getDimNCount(matFileName, &dim, &nnzCount);
     
@@ -108,14 +109,17 @@ int main(int argc, char *argv[]) {
 
   //read vector
   if (myRank == ROOT) {
-    //read the vector
+    //allocate space for vector to read
     bVec = (float* ) malloc(sizeof(float) * dim);
     
-    // also alllocate space for product vector, uncomment it as will use bVec
+    //also alllocate space for product vector, this is not required as can used original 
+    //input vector to store final product vector
     prodVec = (float *) malloc(sizeof(float) * dim);
-  
     memset(bVec, 0, sizeof(float)*dim);
+
+    //read sparse vector
     readSparseVec(bVec, vecFileName, dim);
+
     if (DEBUG) {
       dbgPrintf(myLogFile, "\n display sparse vector:");
       logFArray(bVec, dim, myRank, myLogFile);
@@ -129,7 +133,7 @@ int main(int argc, char *argv[]) {
   myVec = (float *) malloc(sizeof(float) * myRowCount);
 
 
-  //scatter vector
+  //scatter vector to processors
   dbgPrintf(myLogFile, "\nrank:%d before vector scatter\n", myRank);
   scatterVector(bVec, rowInfo, myVec);
 
@@ -143,6 +147,7 @@ int main(int argc, char *argv[]) {
   locProdVec = (float*) malloc(sizeof(float) * myRowCount);
   memset(locProdVec, 0, sizeof(float) * myRowCount);
 
+  //start the total time timer
   totalTimeStart = getTime();
 
   //identify & communicate only required values of vector
@@ -158,6 +163,7 @@ int main(int argc, char *argv[]) {
   vecCommTimeEnd = getTime();
   totalTimeEnd = getTime();
 
+  //compute total time taken
   totalTime = totalTimeEnd - totalTimeStart;
   vecCommTime = vecCommTimeEnd - vecCommTimeStart;
   
@@ -209,8 +215,8 @@ int main(int argc, char *argv[]) {
     }
     dbgPrintf(myLogFile, "\nwritten to serial file");
     fclose(serResFile);
-  }
-  */
+  }*/
+  
 
 
   if (NULL != rowInfo) {
@@ -226,6 +232,11 @@ int main(int argc, char *argv[]) {
   if (NULL != csrMat) {
     freeCSRMat(csrMat);
     dbgPrintf(myLogFile, "\n free csrmat");
+  }
+
+  if (NULL != myBVecParams) {
+    freeBVecComParams(myBVecParams);
+    dbgPrintf(myLogFile, "\n free myBVecParams");
   }
   
   if (NULL != bVec) {

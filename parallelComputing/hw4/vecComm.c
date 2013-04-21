@@ -120,7 +120,8 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   MPI_Request *sendRequest, *recvRequest;
   MPI_Status *sendStatus, *recvStatus;
-  
+
+  //initialize pointers to NULL
   bitColSet = (int *)0;
   recvIdx = (int *)0;
   modRowInfo = (int *)0;
@@ -145,7 +146,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     myLogFile = fopen(strTemp, "w");
   }
 
-  //modRowInfo[2*rank]->start row modRowInfo[2*rank+1]-> end row
+  //prepare modRowInfo from row info
+  //such that start row of 'rank' is modRowInfo[2*'rank']
+  //end row of 'rank' is modRowInfo[2*'rank'+1]
   modRowInfo = (int *) malloc(sizeof(int)*2*numProcs);
   for (i = 0; i < numProcs; i++) {
     modRowInfo[i*2] = rowInfo[i];
@@ -154,25 +157,23 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   //determine which index of vector needed by process by scanning column indices
   //use bitColSet and those 
-  //TODO: check (int)0.4 or 0.5 roundoff 
   setCapacity = ((myCSRMat->numCols+1)/sizeof(int)*8) + 0.5;
   bitColSet = (int*) calloc(setCapacity, sizeof(int));
   for (i = 0; i < myCSRMat->nnzCount; i++) {
-    if (myCSRMat->colInd[i] >= myCSRMat->origFirstRow &&
-	myCSRMat->colInd[i] <= myCSRMat->origLastRow) {
-      //current proc has these columns, no need to add these to set
-      continue;
+    if (!(myCSRMat->colInd[i] >= myCSRMat->origFirstRow &&
+	  myCSRMat->colInd[i] <= myCSRMat->origLastRow)) {
+      //current proc dont has these columns/indices, no need to add these to set
+      addToSet(bitColSet, myCSRMat->colInd[i]);
     }
-    addToSet(bitColSet, myCSRMat->colInd[i]);
   }
   
    
-  //get the count of columns to receive from remote proc
+  //get the count of columns/indices to receive from remote proc
   recvCount = sizeSet(bitColSet, setCapacity);
   bVecParams->recvCount = recvCount;
   dbgPrintf(myLogFile, "\nrank: %d recvCount=%d", myRank, recvCount);
   
-  //get vectr indices that we want to receive
+  //get vector indices that we want to receive
   recvIdx = getSetElements(bitColSet, setCapacity);
   if (DEBUG) {
     dbgPrintf(myLogFile, "\nrecvIdx: ");
@@ -194,8 +195,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   j = -1;
   for (i = 0; i < recvCount; i++) {
-    //search recvIdx[i] in modRowInfo, say get proc k
-    //TODO:
+    //search recvIdx[i] in modRowInfo, to get proc/rank k possessing that index
     k = modBinSearch(modRowInfo, 2*numProcs, recvIdx[i]);
 
     if (DEBUG) {
@@ -223,14 +223,17 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   }
 
   //set the above information about receiving in bVecParams
+  //set the number of ranks from which indices will be received
   bVecParams->numToRecvProcs = j+1;
-  dbgPrintf(myLogFile, "\nRank: %d numToRecv: %d", myRank, bVecParams->numToRecvProcs);
+  dbgPrintf(myLogFile, "\nRank: %d numToRecv: %d", myRank,
+	    bVecParams->numToRecvProcs);
 
   //set the procs from which elements of vector will be received
   bVecParams->toRecvProcs = (int *) malloc(sizeof(int) *
 					   bVecParams->numToRecvProcs);
+  memcpy(bVecParams->toRecvProcs, tempProc,
+	 sizeof(int)*(bVecParams->numToRecvProcs));
 
-  memcpy(bVecParams->toRecvProcs, tempProc, sizeof(int)*(bVecParams->numToRecvProcs));
   if (DEBUG) {
     dbgPrintf(myLogFile, "\ntoRecvProcs: ");
     logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
@@ -240,6 +243,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   bVecParams->recvPtr = (int *) malloc(sizeof(int) * (bVecParams->numToRecvProcs+1));
   memset(bVecParams->recvPtr, 0, sizeof(int) * (bVecParams->numToRecvProcs+1));
   memcpy(bVecParams->recvPtr, tempPtr, sizeof(int)*(bVecParams->numToRecvProcs));
+
   //set last elements of recvptr for last proc
   bVecParams->recvPtr[bVecParams->numToRecvProcs] = recvCount;
   
@@ -248,7 +252,8 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     logArray(bVecParams->recvPtr, bVecParams->numToRecvProcs+1, myRank, myLogFile);
   }
 
-  //initialize recvInd and recvBuf
+  //initialize recvInd and recvBuf, will conain received indices and received
+  //values
   bVecParams->recvInd = (int *) malloc(sizeof(int) * recvCount);
   bVecParams->recvBuf = (float *) malloc(sizeof(float) * recvCount);
 
@@ -271,11 +276,10 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //it needs to receive from process
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     receives[bVecParams->toRecvProcs[i]] =
-      bVecParams->recvPtr[i+1] -
-      bVecParams->recvPtr[i]; 
+      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i]; 
   }
   
-  //ALL-TO-ALL comm to let each processor know where to send 
+  //ALL-TO-ALL comm to let each processor know where & how much to send 
   MPI_Alltoall(receives, 1, MPI_INT, sends, 1, MPI_INT, MPI_COMM_WORLD);
 
   if (DEBUG) {
@@ -336,7 +340,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
 
   //at this point every processor knows what it needs to receive but not what
-  //needs to send
+  //it needs to send
 
   //perform a non blocking send of indices/columns it needs to receive
   
@@ -432,6 +436,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   
   dbgPrintf(myLogFile, "\nAfter Irecv: ");
   
+  //start the timer as now the actual communication of vector elements will start
   *vecCommStartTime = getTime();
   
   //send appropriate local elements of b vector
@@ -451,7 +456,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   
   dbgPrintf(myLogFile, "\nAfter send: ");
   
-  //wait for the IRecv
+  //wait for the IRecv requests to complete
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     MPI_Wait(sendRequest+i, sendStatus+i);
   }
@@ -469,6 +474,14 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   if (sendRequest) {
     free(sendRequest);
+  }
+
+  if (sendStatus) {
+    free(sendStatus);
+  }
+
+  if (recvStatus) {
+    free(recvStatus);
   }
 
   if (recvIdx) {

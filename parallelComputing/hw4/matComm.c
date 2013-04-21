@@ -8,7 +8,6 @@
 #include "io.h"
 
 //sparse mat local to procs *myCSRMat
-
 //*rowInfo store row details s.t. rowInfo[i] is starting row number &
 //rowInfo[i+numProcs] is ending row number
 void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
@@ -76,12 +75,14 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
       dbgPrintf(myLogFile,"\nextraRows = %d", extraRows);
     }
     prevEndRow = -1;
+
     //assuming row ind starts from 0
     for (i = 0; i < numProcs; i++) {
 
-      if (DEBUG)
+      if (DEBUG) {
 	dbgPrintf(myLogFile,"\nprevEndRow = %d", prevEndRow);
-      
+      }
+
       (rowInfo)[i] = prevEndRow + 1;
       (rowInfo)[i+numProcs] = (rowInfo)[i] + rowPerProc - 1;
       if (extraRows-- > 0) {
@@ -108,7 +109,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
     logArray(rowInfo, 2*numProcs, myRank, myLogFile);
   }
 
-  //send the row info to procs
+  //send the row info to all procs
   MPI_Bcast(rowInfo, 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
   
   if (DEBUG) {
@@ -140,8 +141,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
       //row count for proc i
       rowCount[i] = endRow - startRow + 1;
       
-      //TODO: verify below indices
-      //col count or non-zero values for proc i
+      //col count or no. of non-zero values for proc i
       colCount[i] = csrMat->rowPtr[endRow+1] - csrMat->rowPtr[startRow];
       
       dbgPrintf(myLogFile,"\ncolCount[%d] = rowPtr[%d] - rowPtr[%d] = %d - %d = %d", i,
@@ -188,7 +188,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
     logArray(rowInfo, 2*numProcs, myRank, myLogFile);
   }
 
-  //send nnz count to procs
+  //send nnz count to corresponding procs
   MPI_Scatter(colCount, 1, MPI_INT, &myNNZCount, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
     
   if (DEBUG) {
@@ -201,14 +201,15 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   }
 
   //prepare storage for local csr matrix
-  
   (*myCSRMat)->origFirstRow = (rowInfo)[myRank];
   (*myCSRMat)->origLastRow = (rowInfo)[myRank+numProcs];
   
   (*myCSRMat)->nnzCount = myNNZCount;
   (*myCSRMat)->numRows = (*myCSRMat)->origLastRow - (*myCSRMat)->origFirstRow  + 1;
+
   //number of columns is identical to original num columns 
   //in this case num rows is equal to num cols in original matrix
+  //i.e. rowinfo[last rank + numProcs] + 1
   (*myCSRMat)->numCols = (rowInfo)[(numProcs-1) + numProcs] + 1;
 
   (*myCSRMat)->rowPtr = (int *) malloc(sizeof(int) * (((*myCSRMat)->numRows)+1));
@@ -238,7 +239,7 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
 	       MPI_COMM_WORLD);
   
   dbgPrintf(myLogFile, "\n performed scatter of marked values");
-
+  //set last element of rowPtr
   (*myCSRMat)->rowPtr[(*myCSRMat)->numRows] = (*myCSRMat)->rowPtr[0] + myNNZCount;
 
   if (DEBUG) {

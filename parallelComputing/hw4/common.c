@@ -88,5 +88,6 @@ void freeBVecComParams(BVecComParams *bVecParams) {
     free(bVecParams->recvInd);
     free(bVecParams->sendBuf);
     free(bVecParams->recvBuf);
+    free(bVecParams);
   }
 }
