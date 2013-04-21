@@ -84,4 +84,6 @@ void initCSRMat(CSRMat *csrMat);
 void freeCSRMat(CSRMat *csrMat);
 int binIndSearch(int *arr, int len , int val);
 
+double getTime();
+
 #endif

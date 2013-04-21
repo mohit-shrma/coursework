@@ -11,6 +11,7 @@ int isInSet(int *set, int val);
 int sizeSet(int *set, int capacity);
 int* getSetElements(int *set, int capacity);
 void prepareVectorComm(CSRMat  *myCSRMat, float *myVec,
-		       BVecComParams *bVecParams, int *rowInfo);
+		       BVecComParams *bVecParams, int *rowInfo,
+		       double *vecCommStartTime);
 
 #endif

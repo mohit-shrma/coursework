@@ -13,6 +13,8 @@
 #include "mult.h"
 #include "debug.h"
 
+
+
 int main(int argc, char *argv[]) {
 
   char *matFileName, *vecFileName;
@@ -23,13 +25,16 @@ int main(int argc, char *argv[]) {
   int dim, nnzCount, *rowInfo, myRowCount;
   float *myVec, *locProdVec;
 
+  double totalTime, totalTimeStart, totalTimeEnd;
+  double vecCommTime, vecCommTimeStart, vecCommTimeEnd;
+
   //TODO: remove this after verification as can replace myVec with 
   //product itself
   float *prodVec;
 
   FILE *myLogFile, *mpiResFile, *serResFile;
   
-  char strTemp[100];
+  char strTemp[100], opFileName[20];
 
   MPI_Init(&argc, &argv);
   
@@ -52,6 +57,9 @@ int main(int argc, char *argv[]) {
   myBVecParams = NULL;//(BVecComParams *) 0;
   locProdVec = NULL;
   prodVec = NULL;
+  myLogFile = NULL;
+  mpiResFile = NULL;
+  serResFile = NULL;
 
   myCSRMat = (CSRMat *) malloc(sizeof(CSRMat));
   initCSRMat(myCSRMat);
@@ -64,7 +72,7 @@ int main(int argc, char *argv[]) {
   sprintf(strTemp, "%d", myRank);
   strcat(strTemp, "_spMatVec.log");
   myLogFile = fopen(strTemp, "w");
-  
+
   dbgPrintf(myLogFile, "\n rank:%d numProcs:%d ", myRank, numProcs);
   
   //read sparse matrix
@@ -128,18 +136,34 @@ int main(int argc, char *argv[]) {
     dbgPrintf(myLogFile, "\nrank:%d before vector comm\n", myRank);
   }
 
-  //communicate only required values of vector
-  prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
+  //allocate space for local product vector
+  locProdVec = (float*) malloc(sizeof(float) * myRowCount);
+  memset(locProdVec, 0, sizeof(float) * myRowCount);
+
+  totalTimeStart = getTime();
+
+  //identify & communicate only required values of vector
+  prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo, &vecCommTimeStart);
   
   dbgPrintf(myLogFile, "\nrank:%d after vector comm\n", myRank);
   
   //perform multiplication with required values of vector
-  locProdVec = (float*) malloc(sizeof(float) * myRowCount);
-  memset(locProdVec, 0, sizeof(float) * myRowCount);
   computeLocalProd(myCSRMat, myBVecParams, myVec, locProdVec, myRank);
 
   dbgPrintf(myLogFile, "\nrank:%d after local prod gen\n", myRank);
+
+  vecCommTimeEnd = getTime();
+  totalTimeEnd = getTime();
+
+  totalTime = totalTimeEnd - totalTimeStart;
+  vecCommTime = vecCommTimeEnd - vecCommTimeStart;
   
+  if (myRank == ROOT) {
+    printf("\nTotal time taken : %f sec", totalTime);
+    printf("\nTime taken (steps 5 & 6) : %f sec\n", vecCommTime);
+  }
+  
+
   //gather the results of multiplication at root, overwrite myVec with results
   gatherVector(locProdVec, rowInfo, prodVec);
 
@@ -148,9 +172,12 @@ int main(int argc, char *argv[]) {
   if (myRank == ROOT) {
     //write the resulting mpi parallel product vector to a file
     //initialize the result file for the mpi version
-    sprintf(strTemp, "%d", myRank);
-    strcat(strTemp, "_mpi_res.log");
-    mpiResFile = fopen(strTemp, "w");
+    opFileName[0] = '\0';
+    sprintf(strTemp, "%d", dim);
+    strcat(opFileName, "o");
+    strcat(opFileName, strTemp);
+    strcat(opFileName, ".vec");
+    mpiResFile = fopen(opFileName, "w");
     dbgPrintf(myLogFile, "\nwriting to mpi prod file");
     //write down the results of mpi parallel multiplication
     for (i = 0; i < dim; i++) {
@@ -181,6 +208,7 @@ int main(int argc, char *argv[]) {
     fclose(serResFile);
   }
   
+
 
   if (NULL != rowInfo) {
     free(rowInfo);
@@ -217,7 +245,9 @@ int main(int argc, char *argv[]) {
     dbgPrintf(myLogFile, "\n free prodVec\n");
   }
 
-  fclose(myLogFile);
+  if (myLogFile) {
+    fclose(myLogFile);
+  }
 
   MPI_Finalize();
 

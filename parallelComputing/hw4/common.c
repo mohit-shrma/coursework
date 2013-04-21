@@ -1,5 +1,17 @@
 #include "common.h"
+
 #include <stdlib.h>
+#include <sys/time.h>
+
+
+double getTime() {
+  struct timeval tv;
+  struct timeval tz;
+  double currTime;
+  gettimeofday(&tv, &tz);
+  currTime = (double)tv.tv_sec + (double)tv.tv_usec/1000000.0;
+  return currTime;
+}
 
 
 int binIndSearch(int *arr, int len , int val) {

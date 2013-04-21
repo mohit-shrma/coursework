@@ -101,11 +101,11 @@ int modBinSearch(int *arr, int len, int k) {
 }
 
 
-
 //will prepare bVecParams to store the required vector elements by the 
 //current process
 void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
-		       BVecComParams *bVecParams, int *rowInfo) {
+		       BVecComParams *bVecParams, int *rowInfo,
+		       double *vecCommStartTime) {
   int myRank, numProcs;
   int i, j, k, setCapacity;
   int *bitColSet, *recvIdx; 
@@ -403,7 +403,8 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   
   dbgPrintf(myLogFile, "\nAfter Irecv: ");
   
-
+  *vecCommStartTime = getTime();
+  
   //send appropriate local elements of b vector
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
     if (DEBUG) {
