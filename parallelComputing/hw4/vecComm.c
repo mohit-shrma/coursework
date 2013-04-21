@@ -114,7 +114,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   int *tempPtr, *tempProc;
   int *sends, *receives;
   int sendCount;
-  
+  int temp, *tmpBuf;
   char strTemp[20];
   FILE *myLogFile;
 
@@ -128,7 +128,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   sends = (int *)0;
   receives = (int *)0;
   sendRequest = (MPI_Request *) 0;
+  recvRequest = (MPI_Request *) 0;
   myLogFile = NULL;
+  
 
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
@@ -237,6 +239,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   memcpy(bVecParams->recvPtr, tempPtr, sizeof(int)*(bVecParams->numToRecvProcs));
   //set last elements of recvptr for last proc
   bVecParams->recvPtr[bVecParams->numToRecvProcs] = recvCount;
+  
   if (DEBUG) {
     dbgPrintf(myLogFile, "\nrecvPtr: ");
     logArray(bVecParams->recvPtr, bVecParams->numToRecvProcs+1, myRank, myLogFile);
@@ -337,19 +340,22 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //perform a non blocking send of indices/columns it needs to receive
   
   //initialize MPI_Request
-  sendRequest = (MPI_Request*) malloc(sizeof(MPI_Request)
-				      * numProcs);
+  sendRequest = (MPI_Request*) malloc(sizeof(MPI_Request) * numProcs);
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
-    MPI_Isend(bVecParams->recvInd + bVecParams->recvPtr[i] ,
-	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
+    //pointer to buff to copy
+    tmpBuf = bVecParams->recvInd + bVecParams->recvPtr[i];
+
+    //count of elements to send
+    temp = bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i];
+    MPI_Isend(tmpBuf ,
+	      temp,
 	      MPI_INT, bVecParams->toRecvProcs[i], 100, MPI_COMM_WORLD,
 	      sendRequest + i);
   }
 
   //perform a non-blocking receive of columns/indices needed by another process
   //initialize receive MPI_Request
-  recvRequest = (MPI_Request*) malloc(sizeof(MPI_Request)
-				      * numProcs);
+  recvRequest = (MPI_Request*) malloc(sizeof(MPI_Request) *numProcs);
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
     MPI_Irecv(bVecParams->sendInd + bVecParams->sendPtr[i] ,
 	      bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
@@ -371,9 +377,13 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   for (i = 0, k = 0; i < bVecParams->numToSendProcs; i++) {
     for (j = bVecParams->sendPtr[i]; j < bVecParams->sendPtr[i+1]; j++) {
       //subtract indice of offset i.e. starting row held by the process
-      bVecParams->sendBuf[k++] = myVec[bVecParams->sendInd[j] - rowInfo[myRank]];
+      temp = bVecParams->sendInd[j] - rowInfo[myRank];
+      bVecParams->sendBuf[k++] = myVec[temp];
     }
   }
+
+  //printf("\n Rank:%d sendCount:%d k:%d startRow:%d", myRank, sendCount, k, rowInfo[myRank]);
+
 
   if (DEBUG) {
     dbgPrintf(myLogFile, "\nsendBuf: ");
@@ -433,7 +443,21 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     fflush(myLogFile);  
   }
 
+  if (recvRequest) {
+    free(recvRequest);
+  }
 
+  if (sendRequest) {
+    free(sendRequest);
+  }
+
+  if (recvIdx) {
+    free(recvIdx);
+  }
+  
+  if (bitColSet) {
+    free(bitColSet);
+  }
   
   if (sends) {
     free(sends);
@@ -441,6 +465,18 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   if (receives) {
     free(receives);
+  }
+  
+  if (modRowInfo) {
+    free(modRowInfo);
+  }
+
+  if (tempPtr) {
+    free(tempPtr);
+  }
+
+  if (tempProc) {
+    free(tempProc);
   }
 
   if (NULL != myLogFile) {
