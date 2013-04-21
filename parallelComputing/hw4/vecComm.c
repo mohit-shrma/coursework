@@ -278,8 +278,6 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //ALL-TO-ALL comm to let each processor know where to send 
   MPI_Alltoall(receives, 1, MPI_INT, sends, 1, MPI_INT, MPI_COMM_WORLD);
 
-  //MPI_Barrier(MPI_COMM_WORLD);
-
   if (DEBUG) {
     dbgPrintf(myLogFile, "\n receives: ");
     logArray(receives, numProcs, myRank, myLogFile);
@@ -384,9 +382,6 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     MPI_Wait(recvRequest+i, recvStatus+i);
   }
 
-  //TODO: avoid below barrier or check for requests above
-  //MPI_Barrier(MPI_COMM_WORLD);
-
   if (DEBUG) {
     dbgPrintf(myLogFile, "\nsendInd :");
     logArray(bVecParams->sendInd, sendCount, myRank, myLogFile);
@@ -455,8 +450,12 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   }
   
   dbgPrintf(myLogFile, "\nAfter send: ");
+  
+  //wait for the IRecv
+  for (i = 0; i < bVecParams->numToRecvProcs; i++) {
+    MPI_Wait(sendRequest+i, sendStatus+i);
+  }
 
-  MPI_Barrier(MPI_COMM_WORLD);
 
   if (DEBUG) {
     dbgPrintf(myLogFile, "\nrecvBuf: ");
