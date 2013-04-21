@@ -119,7 +119,8 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   FILE *myLogFile;
 
   MPI_Request *sendRequest, *recvRequest;
-
+  MPI_Status *sendStatus, *recvStatus;
+  
   bitColSet = (int *)0;
   recvIdx = (int *)0;
   modRowInfo = (int *)0;
@@ -129,6 +130,8 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   receives = (int *)0;
   sendRequest = (MPI_Request *) 0;
   recvRequest = (MPI_Request *) 0;
+  sendStatus = NULL;
+  recvStatus = NULL;
   myLogFile = NULL;
   
 
@@ -342,6 +345,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //initialize MPI_Request
   sendRequest = (MPI_Request*) malloc(sizeof(MPI_Request) * numProcs);
   memset(sendRequest, 0, sizeof(MPI_Request) * numProcs);
+  sendStatus = (MPI_Status *) malloc(sizeof(MPI_Status) * numProcs);
+  memset(sendStatus, 0, sizeof(MPI_Status) * numProcs);
+  
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     //pointer to buff to copy
     tmpBuf = bVecParams->recvInd + bVecParams->recvPtr[i];
@@ -358,6 +364,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //initialize receive MPI_Request
   recvRequest = (MPI_Request*) malloc(sizeof(MPI_Request) *numProcs);
   memset(recvRequest, 0, sizeof(MPI_Request) *numProcs);
+  recvStatus = (MPI_Status*) malloc(sizeof(MPI_Status) *numProcs);
+  memset(recvStatus, 0, sizeof(MPI_Status) *numProcs);
+
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
     MPI_Irecv(bVecParams->sendInd + bVecParams->sendPtr[i] ,
 	      bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
@@ -365,8 +374,18 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 	      recvRequest + i);
   }
 
+  //wait till all Isend requests are done
+  for (i = 0; i < bVecParams->numToRecvProcs; i++) {
+    MPI_Wait(sendRequest+i, sendStatus+i);
+  }
+
+  //wait till all Irecv requests are done
+  for (i = 0; i < bVecParams->numToSendProcs; i++) {
+    MPI_Wait(recvRequest+i, recvStatus+i);
+  }
+
   //TODO: avoid below barrier or check for requests above
-  MPI_Barrier(MPI_COMM_WORLD);
+  //MPI_Barrier(MPI_COMM_WORLD);
 
   if (DEBUG) {
     dbgPrintf(myLogFile, "\nsendInd :");
@@ -435,7 +454,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 	     MPI_FLOAT, bVecParams->toSendProcs[i], 100, MPI_COMM_WORLD);
   }
   
-  dbgPrintf(myLogFile, "\nAfter Isend: ");
+  dbgPrintf(myLogFile, "\nAfter send: ");
 
   MPI_Barrier(MPI_COMM_WORLD);
 
