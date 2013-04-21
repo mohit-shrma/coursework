@@ -212,7 +212,7 @@ void readSparseVec(float *bVec, char* vecFileName, int dim) {
 }
 
 
-void logArray(int *arr, int len, int rank, FILE *logFile) {
+void logArray(const int *arr, int len, const int rank, FILE *logFile) {
   int i;
   if (DEBUG) {
     dbgPrintf(logFile, " rank:%d ", rank);
@@ -224,7 +224,7 @@ void logArray(int *arr, int len, int rank, FILE *logFile) {
 }
 
 
-void logFArray(float *arr, int len, int rank, FILE *logFile) {
+void logFArray(const float *arr, int len, const int rank, FILE *logFile) {
   int i;
   if (DEBUG) {
     for (i = 0; i < len; i++) {

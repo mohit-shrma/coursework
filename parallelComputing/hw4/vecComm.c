@@ -128,14 +128,17 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   sends = (int *)0;
   receives = (int *)0;
   sendRequest = (MPI_Request *) 0;
+  myLogFile = NULL;
 
   MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
-  //initialize the log file
-  sprintf(strTemp, "%d", myRank);
-  strcat(strTemp, "_vecComm.log");
-  myLogFile = fopen(strTemp, "w");
+  if (DEBUG) {
+    //initialize the log file
+    sprintf(strTemp, "%d", myRank);
+    strcat(strTemp, "_vecComm.log");
+    myLogFile = fopen(strTemp, "w");
+  }
 
   //modRowInfo[2*rank]->start row modRowInfo[2*rank+1]-> end row
   modRowInfo = (int *) malloc(sizeof(int)*2*numProcs);
@@ -439,7 +442,9 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   if (receives) {
     free(receives);
   }
-  
-  fclose(myLogFile);
+
+  if (NULL != myLogFile) {
+    fclose(myLogFile);
+  }
 }
 

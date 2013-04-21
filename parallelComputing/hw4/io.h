@@ -19,9 +19,9 @@ void dispArray(int *arr, int len, int rank);
 
 void dispFArray(float *arr, int len, int rank);
 
-void logArray(int *arr, int len, int rank, FILE *logFile);
+void logArray(const int *arr, int len, const int rank, FILE *logFile);
 
-void logFArray(float *arr, int len, int rank, FILE *logFile);
+void logFArray(const float *arr, int len, const int rank, FILE *logFile);
 
 #endif
 

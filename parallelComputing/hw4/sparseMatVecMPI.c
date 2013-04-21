@@ -69,11 +69,14 @@ int main(int argc, char *argv[]) {
   memset(rowInfo, 0, sizeof(int)*2*numProcs);
   
   //initialize the log file
-  sprintf(strTemp, "%d", myRank);
-  strcat(strTemp, "_spMatVec.log");
-  myLogFile = fopen(strTemp, "w");
+  if (DEBUG) {
+    sprintf(strTemp, "%d", myRank);
+    strcat(strTemp, "_spMatVec.log");
+    myLogFile = fopen(strTemp, "w");
+    dbgPrintf(myLogFile, "\n rank:%d numProcs:%d ", myRank, numProcs);
+  }
 
-  dbgPrintf(myLogFile, "\n rank:%d numProcs:%d ", myRank, numProcs);
+
   
   //read sparse matrix
   if (myRank == ROOT) {
@@ -187,7 +190,7 @@ int main(int argc, char *argv[]) {
     fclose(mpiResFile);
   }
   
-  
+  /*
   if (myRank == ROOT) {
     //reset prod vec which wil contain serial results
     memset(prodVec, 0, (sizeof(float))*dim);
@@ -207,7 +210,7 @@ int main(int argc, char *argv[]) {
     dbgPrintf(myLogFile, "\nwritten to serial file");
     fclose(serResFile);
   }
-  
+  */
 
 
   if (NULL != rowInfo) {

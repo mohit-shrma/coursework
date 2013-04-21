@@ -12,7 +12,7 @@
 //*rowInfo store row details s.t. rowInfo[i] is starting row number &
 //rowInfo[i+numProcs] is ending row number
 void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
-  int myRank, numProcs, i, prevEndRow;
+  int myRank, numProcs, i, j, prevEndRow;
   int totalRows, rowPerProc, extraRows;
   int startRow, endRow, myNNZCount;
   int status;
@@ -47,23 +47,17 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   dispColInd = NULL;
   sendCountRowPtr = NULL;
   sendCountColInd = NULL;
+  myLogFile = NULL;
 
-
-  //initialize the log file
-  sprintf(strTemp, "%d", myRank);
-  strcat(strTemp, "_scatterMat.log");
-  myLogFile = fopen(strTemp, "w");
-
-  dbgPrintf(myLogFile, "\n before bcast row infos");
-
-  //send the row info to procs
-  MPI_Bcast(rowInfo, 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
-  
   if (DEBUG) {
-    dbgPrintf(myLogFile, "\n after bcast row infos");
+  //initialize the log file
+    sprintf(strTemp, "%d", myRank);
+    strcat(strTemp, "_scatterMat.log");
+    myLogFile = fopen(strTemp, "w");
+    dbgPrintf(myLogFile, "\n numProcs = %d, myRank = %d", numProcs, myRank);
     dbgPrintf(myLogFile, "\nrowInfo: ");
     logArray(rowInfo, 2*numProcs, myRank, myLogFile);
-    dbgPrintf(myLogFile,"\nrank:%d divide indices", myRank);
+    dbgPrintf(myLogFile,"\nrank:%d b4 divide indices", myRank);
   }
 
   //divide row indices among matrix
@@ -108,8 +102,11 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
     
   }
   
-  
-  dbgPrintf(myLogFile, "\n before bcast row infos");
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\n before bcast row infos");
+    dbgPrintf(myLogFile, "\nrowInfo: ");
+    logArray(rowInfo, 2*numProcs, myRank, myLogFile);
+  }
 
   //send the row info to procs
   MPI_Bcast(rowInfo, 2*numProcs, MPI_INT, ROOT, MPI_COMM_WORLD);
@@ -160,14 +157,6 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
       //get offset and count of values to be sent to proc i
       dispColInd[i] = csrMat->rowPtr[startRow];
       sendCountColInd[i] = colCount[i];
-
-        //send nnz count to procs
-      if (i != ROOT) {
-	dbgPrintf(myLogFile,"\nrank:%d sending to %d values  %d", myRank, i, *(colCount + i));
-	MPI_Send(colCount+i, 1, MPI_INT, i, 100, MPI_COMM_WORLD);
-      } else {
-	myNNZCount = colCount[ROOT];
-      }
     }
     
     if (DEBUG) {
@@ -190,15 +179,25 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
       logArray(sendCountColInd, numProcs, myRank, myLogFile);
     }
 
-  } else {
-    MPI_Recv(&myNNZCount, 1, MPI_INT, ROOT, 100, MPI_COMM_WORLD, &status);
-  }
+  } 
 
   if (DEBUG) {
-  
-  dbgPrintf(myLogFile,"\nRank: %d nnzcount:%d ", myRank, myNNZCount);
-  dbgPrintf(myLogFile,"\nrowInfo[%d] = %d rowInfo[%d] = %d ", myRank,
-	  (rowInfo)[myRank], myRank+numProcs, (rowInfo)[myRank+numProcs]);
+    dbgPrintf(myLogFile, "\nbefore scatter");
+    dbgPrintf(myLogFile,"\nRank: %d nnzcount:%d ", myRank, myNNZCount);
+    dbgPrintf(myLogFile, "\nrowInfo: ");
+    logArray(rowInfo, 2*numProcs, myRank, myLogFile);
+  }
+
+  //send nnz count to procs
+  MPI_Scatter(colCount, 1, MPI_INT, &myNNZCount, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
+    
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nafter scatter");
+    dbgPrintf(myLogFile,"\nRank: %d nnzcount:%d ", myRank, myNNZCount);
+    dbgPrintf(myLogFile, "\nrowInfo: ");
+    logArray(rowInfo, 2*numProcs, myRank, myLogFile);
+    dbgPrintf(myLogFile,"\nrowInfo[%d] = %d rowInfo[%d] = %d ", myRank,
+	      (rowInfo)[myRank], myRank+numProcs, (rowInfo)[myRank+numProcs]);
   }
 
   //prepare storage for local csr matrix
@@ -292,8 +291,10 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   dbgPrintf(myLogFile, "\n free sendCountColInd");
 
   dbgPrintf(myLogFile,"\n exiting matcomm rank: %d", myRank);
-  fclose(myLogFile);
 
+  if (NULL != myLogFile) {
+    fclose(myLogFile);
+  }
  
 }
 

@@ -18,18 +18,19 @@ void computeLocalProd(CSRMat *myCSRMat, BVecComParams *myVecParams,
   FILE *myLogFile;
   
   myLogFile = NULL;
-
-  //initialize the log file
-  sprintf(strTemp, "%d", myRank);
-  strcat(strTemp, "_locProd.log");
-  myLogFile = fopen(strTemp, "w");
-
-  dbgPrintf(myLogFile, "\n numRows = %d", myCSRMat->numRows);
-  dbgPrintf(myLogFile, "\n recvInd: ");
-  logArray(myVecParams->recvInd, myVecParams->recvCount, myRank, myLogFile);
-  dbgPrintf(myLogFile, "\n recvBuf: ");
-  logFArray(myVecParams->recvBuf, myVecParams->recvCount, myRank, myLogFile);
-
+  
+  if (DEBUG) {
+    //initialize the log file
+    sprintf(strTemp, "%d", myRank);
+    strcat(strTemp, "_locProd.log");
+    myLogFile = fopen(strTemp, "w");
+    
+    dbgPrintf(myLogFile, "\n numRows = %d", myCSRMat->numRows);
+    dbgPrintf(myLogFile, "\n recvInd: ");
+    logArray(myVecParams->recvInd, myVecParams->recvCount, myRank, myLogFile);
+    dbgPrintf(myLogFile, "\n recvBuf: ");
+    logFArray(myVecParams->recvBuf, myVecParams->recvCount, myRank, myLogFile);
+  }
 
   for (row = 0; row < myCSRMat->numRows; row++) {
 
@@ -69,8 +70,10 @@ void computeLocalProd(CSRMat *myCSRMat, BVecComParams *myVecParams,
     }
     
   }
-  
-  fclose(myLogFile);
+
+  if (NULL != myLogFile) {
+    fclose(myLogFile);
+  }
 }
 
 
