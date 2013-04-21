@@ -341,6 +341,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   
   //initialize MPI_Request
   sendRequest = (MPI_Request*) malloc(sizeof(MPI_Request) * numProcs);
+  memset(sendRequest, 0, sizeof(MPI_Request) * numProcs);
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
     //pointer to buff to copy
     tmpBuf = bVecParams->recvInd + bVecParams->recvPtr[i];
@@ -356,6 +357,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //perform a non-blocking receive of columns/indices needed by another process
   //initialize receive MPI_Request
   recvRequest = (MPI_Request*) malloc(sizeof(MPI_Request) *numProcs);
+  memset(recvRequest, 0, sizeof(MPI_Request) *numProcs);
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
     MPI_Irecv(bVecParams->sendInd + bVecParams->sendPtr[i] ,
 	      bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
