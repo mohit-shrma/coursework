@@ -16,7 +16,7 @@ STDLIBS = -lm
 CFLAGS = $(COPTIONS) $(OMPOPTIONS)
 LIBS = $(STDLIBS)
 
-SOURCE = sparseMatVecMPI.c matComm.c io.c common.c vecComm.c mult.c
+SOURCE = sparseMatVecMPI.c matComm.c io.c common.c vecComm.c mult.c debug.c
 EXE = spMatVec
 
 default:

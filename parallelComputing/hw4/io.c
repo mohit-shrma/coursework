@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "debug.h"
 #include "io.h"
 
 //split the passed line into row, col, value
@@ -50,7 +51,7 @@ void getDimNCount(char *matFileName, int *dim, int *nnz) {
 
 
   if ((fin = fopen(matFileName, "r")) == NULL) {
-    fprintf(stderr, \
+    dbgPrintf(stderr, \
 	    "Error: failed to read file %s while calculating dimensions\n",\
 	    matFileName);
     exit(1);
@@ -97,23 +98,27 @@ void displSparseMat(CSRMat *csrMat, int rank) {
 
 
 void logSparseMat(CSRMat *csrMat, int rank, FILE* myLogFile) {
+  
   int i, j;
   
   int startValInd, endValInd;
-
-  fprintf(myLogFile, "\nmyCSRMat Rank:%d numRows:%d", rank, csrMat->numRows);
-  fprintf(myLogFile, "\nmyCSRMat Rank:%d nnz count:%d", rank, csrMat->nnzCount);
-  fprintf(myLogFile, "\nmyCSRMat Rank: %d rowPtr: ", rank);
-  logArray(csrMat->rowPtr, csrMat->numRows+1, rank, myLogFile);
   
-  for (i = 0; i < csrMat->numRows; i++) {
-    startValInd = csrMat->rowPtr[i] - csrMat->rowPtr[0];
-    endValInd = csrMat->rowPtr[i+1] - csrMat->rowPtr[0];
-    for (j = startValInd; j < endValInd; j++) {
-      //fprintf(myLogFile, "\nrank=%d\t%d\t%d\t%f\t%d", rank, i, csrMat->colInd[j], csrMat->values[j], j);
+  if (DEBUG) {
+  
+    dbgPrintf(myLogFile, "\nmyCSRMat Rank:%d numRows:%d", rank, csrMat->numRows);
+    dbgPrintf(myLogFile, "\nmyCSRMat Rank:%d nnz count:%d", rank, csrMat->nnzCount);
+    dbgPrintf(myLogFile, "\nmyCSRMat Rank: %d rowPtr: ", rank);
+    logArray(csrMat->rowPtr, csrMat->numRows+1, rank, myLogFile);
+    
+    for (i = 0; i < csrMat->numRows; i++) {
+      startValInd = csrMat->rowPtr[i] - csrMat->rowPtr[0];
+      endValInd = csrMat->rowPtr[i+1] - csrMat->rowPtr[0];
+      for (j = startValInd; j < endValInd; j++) {
+	//dbgPrintf(myLogFile, "\nrank=%d\t%d\t%d\t%f\t%d", rank, i, csrMat->colInd[j], csrMat->values[j], j);
+      }
     }
+    dbgPrintf(myLogFile, "\n");
   }
-  fprintf(myLogFile, "\n");
 }
 
 
@@ -132,7 +137,7 @@ CSRMat* readSparseMat(char *matFileName, int dim, int nnz) {
   prevRow = -1;
 
   if ((matFile = fopen(matFileName, "r")) == NULL) {
-    fprintf(stderr, "Error: failed to read file %s \n", matFileName);
+    dbgPrintf(stderr, "Error: failed to read file %s \n", matFileName);
     exit(1);
   } else {
 
@@ -191,7 +196,7 @@ void readSparseVec(float *bVec, char* vecFileName, int dim) {
   line = (char *)0;
 
   if ((vecFile = fopen(vecFileName, "r")) == NULL) {
-    fprintf(stderr, "Error: failed to read file %s \n", vecFileName);
+    dbgPrintf(stderr, "Error: failed to read file %s \n", vecFileName);
   } else {
     line = malloc(BUF_SZ);
     for (i = 0; i < dim; i++) {
@@ -209,20 +214,24 @@ void readSparseVec(float *bVec, char* vecFileName, int dim) {
 
 void logArray(int *arr, int len, int rank, FILE *logFile) {
   int i;
-  fprintf(logFile, " rank:%d ", rank);
-  for (i = 0; i < len; i++) {
-    fprintf(logFile, "%d ", arr[i]);
+  if (DEBUG) {
+    dbgPrintf(logFile, " rank:%d ", rank);
+    for (i = 0; i < len; i++) {
+      dbgPrintf(logFile, "%d ", arr[i]);
+    }
+    dbgPrintf(logFile,"\n");
   }
-  fprintf(logFile,"\n");
 }
 
 
 void logFArray(float *arr, int len, int rank, FILE *logFile) {
   int i;
-  for (i = 0; i < len; i++) {
-    fprintf(logFile, "\nrank=%d arr[%d]=%f ", rank, i,arr[i]);
+  if (DEBUG) {
+    for (i = 0; i < len; i++) {
+      dbgPrintf(logFile, "\nrank=%d arr[%d]=%f ", rank, i,arr[i]);
+    }
+    dbgPrintf(logFile, "\n");
   }
-  fprintf(logFile, "\n");
 }
 
 

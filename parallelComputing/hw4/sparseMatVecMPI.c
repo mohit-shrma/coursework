@@ -11,6 +11,7 @@
 #include "matComm.h"
 #include "vecComm.h"
 #include "mult.h"
+#include "debug.h"
 
 int main(int argc, char *argv[]) {
 
@@ -63,8 +64,8 @@ int main(int argc, char *argv[]) {
   sprintf(strTemp, "%d", myRank);
   strcat(strTemp, "_spMatVec.log");
   myLogFile = fopen(strTemp, "w");
-
-  fprintf(myLogFile, "\n rank:%d numProcs:%d ", myRank, numProcs);
+  
+  dbgPrintf(myLogFile, "\n rank:%d numProcs:%d ", myRank, numProcs);
   
   //read sparse matrix
   if (myRank == ROOT) {
@@ -73,24 +74,27 @@ int main(int argc, char *argv[]) {
     
     //read the matrix
     csrMat = readSparseMat(matFileName, dim, nnzCount);
-    fprintf(myLogFile, "\n display full sparse mat rank:%d numProcs:%d\n",
-	    myRank, numProcs);
-    logSparseMat(csrMat, myRank, myLogFile);
-
+    if (DEBUG) {
+      dbgPrintf(myLogFile, "\n display full sparse mat rank:%d numProcs:%d\n",
+		myRank, numProcs);
+      logSparseMat(csrMat, myRank, myLogFile);
+    }
   } else {
     csrMat = (CSRMat *) malloc(sizeof(CSRMat));
     initCSRMat(csrMat);
   }
   
-  fprintf(myLogFile, "\nrank:%d before matrix scatter\n", myRank);
+  dbgPrintf(myLogFile, "\nrank:%d before matrix scatter\n", myRank);
   scatterMatrix(csrMat, &myCSRMat, rowInfo);
   
-  fprintf(myLogFile, "\nlocal sparse mat rank:%d\n", myRank);
-  logSparseMat(myCSRMat, myRank, myLogFile);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nlocal sparse mat rank:%d\n", myRank);
+    logSparseMat(myCSRMat, myRank, myLogFile);
+    
+    dbgPrintf(myLogFile, "\n rowInfo: ");
+    logArray(rowInfo, numProcs*2, myRank, myLogFile);
+  }
 
-  fprintf(myLogFile, "\n rowInfo: ");
-  logArray(rowInfo, numProcs*2, myRank, myLogFile);
-  
   //read vector
   if (myRank == ROOT) {
     //read the vector
@@ -101,44 +105,45 @@ int main(int argc, char *argv[]) {
   
     memset(bVec, 0, sizeof(float)*dim);
     readSparseVec(bVec, vecFileName, dim);
-    fprintf(myLogFile, "\n display sparse vector:");
-    logFArray(bVec, dim, myRank, myLogFile);
+    if (DEBUG) {
+      dbgPrintf(myLogFile, "\n display sparse vector:");
+      logFArray(bVec, dim, myRank, myLogFile);
+    }
   }
 
  
   //allocate space for local part of vector
   myRowCount = rowInfo[myRank+numProcs] - rowInfo[myRank] + 1;
-  fprintf(myLogFile, "\nrank: %d rowCount:%d", myRank, myRowCount);
+  dbgPrintf(myLogFile, "\nrank: %d rowCount:%d", myRank, myRowCount);
   myVec = (float *) malloc(sizeof(float) * myRowCount);
 
 
   //scatter vector
-  fprintf(myLogFile, "\nrank:%d before vector scatter\n", myRank);
+  dbgPrintf(myLogFile, "\nrank:%d before vector scatter\n", myRank);
   scatterVector(bVec, rowInfo, myVec);
 
-  fprintf(myLogFile, "\nlocal vec rank:%d\n", myRank);
-  logFArray(myVec, myRowCount, myRank, myLogFile);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nlocal vec rank:%d\n", myRank);
+    logFArray(myVec, myRowCount, myRank, myLogFile);
+    dbgPrintf(myLogFile, "\nrank:%d before vector comm\n", myRank);
+  }
 
-
-  fprintf(myLogFile, "\nrank:%d before vector comm\n", myRank);
-  fflush(myLogFile);
   //communicate only required values of vector
   prepareVectorComm(myCSRMat, myVec, myBVecParams, rowInfo);
   
-  
-  fprintf(myLogFile, "\nrank:%d after vector comm\n", myRank);
+  dbgPrintf(myLogFile, "\nrank:%d after vector comm\n", myRank);
   
   //perform multiplication with required values of vector
   locProdVec = (float*) malloc(sizeof(float) * myRowCount);
   memset(locProdVec, 0, sizeof(float) * myRowCount);
   computeLocalProd(myCSRMat, myBVecParams, myVec, locProdVec, myRank);
 
-  fprintf(myLogFile, "\nrank:%d after local prod gen\n", myRank);
+  dbgPrintf(myLogFile, "\nrank:%d after local prod gen\n", myRank);
   
   //gather the results of multiplication at root, overwrite myVec with results
   gatherVector(locProdVec, rowInfo, prodVec);
 
-  fprintf(myLogFile, "\n after gathering computed subProduct across nodes");
+  dbgPrintf(myLogFile, "\n after gathering computed subProduct across nodes");
  
   if (myRank == ROOT) {
     //write the resulting mpi parallel product vector to a file
@@ -146,12 +151,12 @@ int main(int argc, char *argv[]) {
     sprintf(strTemp, "%d", myRank);
     strcat(strTemp, "_mpi_res.log");
     mpiResFile = fopen(strTemp, "w");
-    fprintf(myLogFile, "\nwriting to mpi prod file");
+    dbgPrintf(myLogFile, "\nwriting to mpi prod file");
     //write down the results of mpi parallel multiplication
     for (i = 0; i < dim; i++) {
       fprintf(mpiResFile, "%f\n", prodVec[i]);
     }
-    fprintf(myLogFile, "\nwritten to mpi prod file");
+    dbgPrintf(myLogFile, "\nwritten to mpi prod file");
     fclose(mpiResFile);
   }
   
@@ -167,49 +172,49 @@ int main(int argc, char *argv[]) {
     sprintf(strTemp, "%d", myRank);
     strcat(strTemp, "_non_mpi_res.log");
     serResFile = fopen(strTemp, "w");
-    fprintf(myLogFile, "\nwriting to serial file");
+    dbgPrintf(myLogFile, "\nwriting to serial file");
     //write down the results of serial multiplication
     for (i = 0; i < dim; i++) {
       fprintf(serResFile, "%f\n", prodVec[i]);
     }
-    fprintf(myLogFile, "\nwritten to serial file");
+    dbgPrintf(myLogFile, "\nwritten to serial file");
     fclose(serResFile);
   }
   
 
   if (NULL != rowInfo) {
     free(rowInfo);
-    fprintf(myLogFile, "\n free rowInfo");
+    dbgPrintf(myLogFile, "\n free rowInfo");
   }
 
   if (NULL != myCSRMat) {
     freeCSRMat(myCSRMat);
-    fprintf(myLogFile, "\n free myCSRMat");
+    dbgPrintf(myLogFile, "\n free myCSRMat");
   }
 
   if (NULL != csrMat) {
     freeCSRMat(csrMat);
-    fprintf(myLogFile, "\n free csrmat");
+    dbgPrintf(myLogFile, "\n free csrmat");
   }
   
   if (NULL != bVec) {
     free(bVec);
-    fprintf(myLogFile, "\n free bvec");
+    dbgPrintf(myLogFile, "\n free bvec");
   }
 
   if (NULL != myVec) {
     free(myVec);
-    fprintf(myLogFile, "\n free myVec\n");
+    dbgPrintf(myLogFile, "\n free myVec\n");
   }
 
   if (NULL != locProdVec) {
     free(locProdVec);
-    fprintf(myLogFile, "\n free locProdVec\n");
+    dbgPrintf(myLogFile, "\n free locProdVec\n");
   }
 
   if (NULL != prodVec) {
     free(prodVec);
-    fprintf(myLogFile, "\n free prodVec\n");
+    dbgPrintf(myLogFile, "\n free prodVec\n");
   }
 
   fclose(myLogFile);

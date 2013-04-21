@@ -2,8 +2,10 @@
 #include <stdio.h>
 #include <mpi.h>
 #include <string.h>
+
 #include "vecComm.h"
 #include "io.h"
+#include "debug.h"
 
 void addToSet(int *set, int val) {
   int block, pos;
@@ -156,18 +158,19 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     addToSet(bitColSet, myCSRMat->colInd[i]);
   }
   
-  fprintf(myLogFile, "\n*************************** ******************************\n");
-  
+   
   //get the count of columns to receive from remote proc
   recvCount = sizeSet(bitColSet, setCapacity);
   bVecParams->recvCount = recvCount;
-  fprintf(myLogFile, "\nrank: %d recvCount=%d", myRank, recvCount);
+  dbgPrintf(myLogFile, "\nrank: %d recvCount=%d", myRank, recvCount);
   
   //get vectr indices that we want to receive
   recvIdx = getSetElements(bitColSet, setCapacity);
-  fprintf(myLogFile, "\nrecvIdx: ");
-  logArray(recvIdx, recvCount, myRank, myLogFile);
-  
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nrecvIdx: ");
+    logArray(recvIdx, recvCount, myRank, myLogFile);
+  }
+
   //get the remote process that contain these vector elements
   tempPtr = (int *) malloc(sizeof(int)*numProcs);
   tempProc = (int *) malloc(sizeof(int)*numProcs);
@@ -176,9 +179,10 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     tempProc[i] = -1;
   }
   
-
-  fprintf(myLogFile, "\n modRowInfo: ");
-  logArray(modRowInfo, 2*numProcs, myRank, myLogFile);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\n modRowInfo: ");
+    logArray(modRowInfo, 2*numProcs, myRank, myLogFile);
+  }
 
   j = -1;
   for (i = 0; i < recvCount; i++) {
@@ -186,10 +190,12 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     //TODO:
     k = modBinSearch(modRowInfo, 2*numProcs, recvIdx[i]);
 
-    if (k == -1) {
-      fprintf(myLogFile, "\n rank:%d Couldn't find rank for %d", myRank, recvIdx[i]);
-    } else {
-      fprintf(myLogFile, "\n rank:%d foundRank:%d for %d", myRank, k, recvIdx[i]);
+    if (DEBUG) {
+      if (k == -1) {
+	dbgPrintf(myLogFile, "\n rank:%d Couldn't find rank for %d", myRank, recvIdx[i]);
+      } else {
+	dbgPrintf(myLogFile, "\n rank:%d foundRank:%d for %d", myRank, k, recvIdx[i]);
+      }
     }
 
     if (j == -1 || tempProc[j] != k) {
@@ -200,35 +206,38 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     }
   }
   
-  
-  fprintf(myLogFile, "\n tempProc: ");
-  logArray(tempProc, numProcs, myRank, myLogFile);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\n tempProc: ");
+    logArray(tempProc, numProcs, myRank, myLogFile);
+    
+    dbgPrintf(myLogFile, "\n tempPtr: ");
+    logArray(tempPtr, numProcs, myRank, myLogFile);
+  }
 
-  fprintf(myLogFile, "\n tempPtr: ");
-  logArray(tempPtr, numProcs, myRank, myLogFile);
-  
   //set the above information about receiving in bVecParams
   bVecParams->numToRecvProcs = j+1;
-  fprintf(myLogFile, "\nRank: %d numToRecv: %d", myRank, bVecParams->numToRecvProcs);
+  dbgPrintf(myLogFile, "\nRank: %d numToRecv: %d", myRank, bVecParams->numToRecvProcs);
 
   //set the procs from which elements of vector will be received
   bVecParams->toRecvProcs = (int *) malloc(sizeof(int) *
 					   bVecParams->numToRecvProcs);
 
-  memcpy(bVecParams->toRecvProcs, tempProc,
-	 sizeof(int)*(bVecParams->numToRecvProcs));
-  fprintf(myLogFile, "\ntoRecvProcs: ");
-  logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
-  
+  memcpy(bVecParams->toRecvProcs, tempProc, sizeof(int)*(bVecParams->numToRecvProcs));
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\ntoRecvProcs: ");
+    logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
+  }
+
   //set the pointer to elements that will be received from proc
   bVecParams->recvPtr = (int *) malloc(sizeof(int) * (bVecParams->numToRecvProcs+1));
   memset(bVecParams->recvPtr, 0, sizeof(int) * (bVecParams->numToRecvProcs+1));
   memcpy(bVecParams->recvPtr, tempPtr, sizeof(int)*(bVecParams->numToRecvProcs));
   //set last elements of recvptr for last proc
   bVecParams->recvPtr[bVecParams->numToRecvProcs] = recvCount;
-
-  fprintf(myLogFile, "\nrecvPtr: ");
-  logArray(bVecParams->recvPtr, bVecParams->numToRecvProcs+1, myRank, myLogFile);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nrecvPtr: ");
+    logArray(bVecParams->recvPtr, bVecParams->numToRecvProcs+1, myRank, myLogFile);
+  }
 
   //initialize recvInd and recvBuf
   bVecParams->recvInd = (int *) malloc(sizeof(int) * recvCount);
@@ -236,9 +245,10 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
 
   //initialize recvInd with columns/vector indices that proc needs
   memcpy(bVecParams->recvInd, recvIdx, sizeof(int)*recvCount);
-  fprintf(myLogFile, "\n recvCount:%d recvInd: ", recvCount);
-  logArray(bVecParams->recvInd, recvCount, myRank, myLogFile);
-  
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\n recvCount:%d recvInd: ", recvCount);
+    logArray(bVecParams->recvInd, recvCount, myRank, myLogFile);
+  }
   memset(bVecParams->recvBuf, 0, sizeof(float) * recvCount);
 
   //allocate memory for send and receive buffer
@@ -255,22 +265,19 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
       bVecParams->recvPtr[i+1] -
       bVecParams->recvPtr[i]; 
   }
-
   
   //ALL-TO-ALL comm to let each processor know where to send 
   MPI_Alltoall(receives, 1, MPI_INT, sends, 1, MPI_INT, MPI_COMM_WORLD);
 
+  //MPI_Barrier(MPI_COMM_WORLD);
 
-  fprintf(myLogFile, "\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$   $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
-  MPI_Barrier(MPI_COMM_WORLD);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\n receives: ");
+    logArray(receives, numProcs, myRank, myLogFile);
 
-
-  fprintf(myLogFile, "\n receives: ");
-  logArray(receives, numProcs, myRank, myLogFile);
-
-  fprintf(myLogFile, "\n sends: ");
-  logArray(sends, numProcs, myRank, myLogFile);
-  
+    dbgPrintf(myLogFile, "\n sends: ");
+    logArray(sends, numProcs, myRank, myLogFile);
+  }
 
   //now sends contain information how many elements we need to
   //send to each process 
@@ -300,7 +307,7 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   for (i = 0, j = 1, k = 0; i < numProcs; i++) {
     if (sends[i] != 0) {
       bVecParams->sendPtr[j] = sends[i] + bVecParams->sendPtr[j-1];
-      //fprintf(myLogFile, "\n rank:%d adding %d to sendPtr[%d]= %d", myRank, sends[i],
+      //dbgPrintf(myLogFile, "\n rank:%d adding %d to sendPtr[%d]= %d", myRank, sends[i],
       //     j, bVecParams->sendPtr[j]);
       sendCount += sends[i];
       bVecParams->toSendProcs[k++] = i;
@@ -310,11 +317,12 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   
   bVecParams->sendCount = sendCount;
 
-  fprintf(myLogFile, "\nnumSendProcs = %d sendPtr: ", bVecParams->numToSendProcs);
-  logArray(bVecParams->sendPtr, (bVecParams->numToSendProcs) + 1, myRank, myLogFile);
-  
-  fprintf(myLogFile, "\nrank: %d sendCount: %d", myRank, sendCount);
-  
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nnumSendProcs = %d sendPtr: ", bVecParams->numToSendProcs);
+    logArray(bVecParams->sendPtr, (bVecParams->numToSendProcs) + 1, myRank, myLogFile);
+    dbgPrintf(myLogFile, "\nrank: %d sendCount: %d", myRank, sendCount);
+  }
+
   //allocate space for sendInd & sendBuf in bVecParams
   bVecParams->sendInd = (int *) malloc(sizeof(int)*sendCount);
   bVecParams->sendBuf = (float *) malloc(sizeof(float)*sendCount);
@@ -349,9 +357,11 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
   //TODO: avoid below barrier or check for requests above
   MPI_Barrier(MPI_COMM_WORLD);
 
-  fprintf(myLogFile, "\nsendInd :");
-  logArray(bVecParams->sendInd, sendCount, myRank, myLogFile);
-  
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nsendInd :");
+    logArray(bVecParams->sendInd, sendCount, myRank, myLogFile);
+  }
+
   //at this point each processor know what it needs to send in bVecParams->sendInd
 
   //copy the elements it needs to send in bVecParams->sendBuf
@@ -362,57 +372,64 @@ void prepareVectorComm(CSRMat* myCSRMat, float *myVec,
     }
   }
 
-  fprintf(myLogFile, "\nsendBuf: ");
-  logFArray(bVecParams->sendBuf, sendCount, myRank, myLogFile);
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nsendBuf: ");
+    logFArray(bVecParams->sendBuf, sendCount, myRank, myLogFile);
 
-  fprintf(myLogFile, "\nnumToRecvProcs: %d", bVecParams->numToRecvProcs);
-  logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
-  fflush(myLogFile);  
+    dbgPrintf(myLogFile, "\nnumToRecvProcs: %d", bVecParams->numToRecvProcs);
+    logArray(bVecParams->toRecvProcs, bVecParams->numToRecvProcs, myRank, myLogFile);
+  }
+
+  
 
   //we know what we need to receive from other processors, issue non-blocking
   //receive operations for these
   for (i = 0; i < bVecParams->numToRecvProcs; i++) {
-    fprintf(myLogFile, "\nIrecv from proc: %d count: %d\n",
-	    bVecParams->toRecvProcs[i],
-	    bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i]);
-    
-    logFArray(bVecParams->recvBuf + bVecParams->recvPtr[i],
-	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
-	      myRank, myLogFile);
+    if (DEBUG) {
+      dbgPrintf(myLogFile, "\nIrecv from proc: %d count: %d\n",
+		bVecParams->toRecvProcs[i],
+		bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i]);
+      
+      logFArray(bVecParams->recvBuf + bVecParams->recvPtr[i],
+		bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
+		myRank, myLogFile);
+    }
 
     MPI_Irecv(bVecParams->recvBuf + bVecParams->recvPtr[i] ,
 	      bVecParams->recvPtr[i+1] - bVecParams->recvPtr[i],
 	      MPI_FLOAT, bVecParams->toRecvProcs[i], 100, MPI_COMM_WORLD,
 	      sendRequest + i);
-
-    fflush(myLogFile);
   }
   
-  fprintf(myLogFile, "\nAfter Irecv: ");
-  fflush(myLogFile);  
-
+  dbgPrintf(myLogFile, "\nAfter Irecv: ");
+  
 
   //send appropriate local elements of b vector
   for (i = 0; i < bVecParams->numToSendProcs; i++) {
-    fprintf(myLogFile, "\n rank:%d sending %d to %d", myRank,
-	    bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
-	    bVecParams->toSendProcs[i]);
-    logFArray(bVecParams->sendBuf + bVecParams->sendPtr[i],
-	      bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
-	      myRank, myLogFile);
-    fflush(myLogFile);  
+    if (DEBUG) {
+      dbgPrintf(myLogFile, "\n rank:%d sending %d to %d", myRank,
+		bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
+		bVecParams->toSendProcs[i]);
+      logFArray(bVecParams->sendBuf + bVecParams->sendPtr[i],
+		bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
+		myRank, myLogFile);
+    }
     MPI_Send(bVecParams->sendBuf + bVecParams->sendPtr[i],
 	     bVecParams->sendPtr[i+1] - bVecParams->sendPtr[i],
 	     MPI_FLOAT, bVecParams->toSendProcs[i], 100, MPI_COMM_WORLD);
   }
   
-  fprintf(myLogFile, "\nAfter Isend: ");
-  fflush(myLogFile);  
+  dbgPrintf(myLogFile, "\nAfter Isend: ");
 
   MPI_Barrier(MPI_COMM_WORLD);
-  fprintf(myLogFile, "\nrecvBuf: ");
-  logFArray(bVecParams->recvBuf, recvCount, myRank, myLogFile);
-  fflush(myLogFile);  
+
+  if (DEBUG) {
+    dbgPrintf(myLogFile, "\nrecvBuf: ");
+    logFArray(bVecParams->recvBuf, recvCount, myRank, myLogFile);
+    fflush(myLogFile);  
+  }
+
+
   
   if (sends) {
     free(sends);
