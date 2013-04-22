@@ -1,6 +1,7 @@
 #include "mult.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "io.h"
 # include "debug.h"
@@ -59,6 +60,7 @@ void computeLocalProd(CSRMat *myCSRMat, BVecComParams *myVecParams,
 	dbgPrintf(myLogFile, "\nsearch for column: %d search res: %d", col, searchedInd);
 	if (searchedInd == -1) {
 	  dbgPrintf(myLogFile, "\ncolumn not found, this shouldn't happen");
+	  exit(1);
 	} else {
 	  vecVal = myVecParams->recvBuf[searchedInd];
 	}
