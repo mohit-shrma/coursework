@@ -44,7 +44,6 @@ void scatterMatrix(CSRMat *csrMat, CSRMat **myCSRMat, int *rowInfo) {
   sendCountRowPtr = NULL;
   
   dispColInd = NULL;
-  sendCountRowPtr = NULL;
   sendCountColInd = NULL;
   myLogFile = NULL;
 
