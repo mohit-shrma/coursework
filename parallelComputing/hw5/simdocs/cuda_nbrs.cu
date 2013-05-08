@@ -10,30 +10,38 @@ extern "C"
 }
 
 
-void cudaCopyCSRIArr(int *h_IPtr, int *d_IPtr, int size) {
+int* cudaCopyCSRIArr(int *h_IPtr,  int size) {
+  int *d_IPtr;
+
   //allocate device pointers d_Iptr
   cudaMalloc((void **) &d_IPtr, sizeof(int)*size);
 
   //copy h_Iptr to device
   cudaMemcpy((void *) d_IPtr, h_IPtr, sizeof(int)*size,	\
 	     cudaMemcpyHostToDevice);
+  return d_IPtr;
 }
 
 
-void cudaCopyCSRFArr(float *h_FPtr, float *d_FPtr, int size) {
+float* cudaCopyCSRFArr(float *h_FPtr,  int size) {
+  float *d_FPtr;
+
   //allocate device pointers d_Fptr
   cudaMalloc((void **) &d_FPtr, sizeof(float)*size);
 
   //copy h_Fptr to device
   cudaMemcpy((void *) d_FPtr, h_FPtr, sizeof(float)*size,	\
 	     cudaMemcpyHostToDevice);
+  return d_FPtr;
 }
 
 
-cuda_csr_t *cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
+cuda_csr_t cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   
+  cuda_csr_t d_mat;
+
   //will pass this struct by value to kernel
-  cuda_csr_t *h_mat;
+  //cuda_csr_t *h_mat = &hMat;
 
   int *d_tempIPtr;
   float *d_tempFPtr;
@@ -45,15 +53,15 @@ cuda_csr_t *cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   
   assert(nnz != 0);
 
-  h_mat = (cuda_csr_t *) malloc(sizeof(gk_csr_t)); 
+  //h_mat = (cuda_csr_t *) malloc(sizeof(gk_csr_t)); 
   
   //TODO: check if this will work as it is direct assignment
   //TODO: this dont work
-  cudaCopyCSRIArr(&mat->nrows, d_tempIPtr, 1);
-  h_mat->nrows = d_tempIPtr;
+  d_tempIPtr = cudaCopyCSRIArr(&(mat->nrows), 1);
+  d_mat.nrows = d_tempIPtr;
 
-  cudaCopyCSRIArr(&mat->ncols, d_tempIPtr, 1);
-  h_mat->ncols = d_tempIPtr;
+  d_tempIPtr = cudaCopyCSRIArr(&(mat->ncols), 1);
+  d_mat.ncols = d_tempIPtr;
 
   //allocate device struct
   //d_mat = cudaMalloc((void**) &d_mat, sizeof(gk_csr_t));
@@ -61,49 +69,49 @@ cuda_csr_t *cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   //copy row structure
 
   //copy row ptr
-  cudaCopyCSRIArr(mat->rowptr, d_tempIPtr, (mat->nrows)+1);
+  d_tempIPtr = cudaCopyCSRIArr(mat->rowptr,  (mat->nrows)+1);
   
   //point to device pointer in host
-  h_mat->rowptr = d_tempIPtr;  
+  d_mat.rowptr = d_tempIPtr;  
 
   //copy device pointers rowind
-  cudaCopyCSRIArr(mat->rowind, d_tempIPtr, nnz);
+  d_tempIPtr = cudaCopyCSRIArr(mat->rowind,  nnz);
 
   //point to device pointer in host
-  h_mat->rowind = d_tempIPtr;  
+  d_mat.rowind = d_tempIPtr;  
 
   //copy device pointers rowvals
-  cudaCopyCSRFArr(mat->rowval, d_tempFPtr, nnz);
+  d_tempFPtr =  cudaCopyCSRFArr(mat->rowval,  nnz);
 
   //point to device pointer in host
-  h_mat->rowval = d_tempFPtr;
+  d_mat.rowval = d_tempFPtr;
 
   if (mat->rowids) {
     //copy device pointers rowids
-    cudaCopyCSRIArr(mat->rowids, d_tempIPtr, mat->nrows);
+    d_tempIPtr = cudaCopyCSRIArr(mat->rowids,  mat->nrows);
 
     //point to device pointer in host
-    h_mat->rowids = d_tempIPtr;
+    d_mat.rowids = d_tempIPtr;
   }
 
   if (mat->rnorms) {
     //copy device pointers rnorms
-    cudaCopyCSRFArr(mat->rnorms, d_tempFPtr, mat->nrows);
+    d_tempFPtr = cudaCopyCSRFArr(mat->rnorms,  mat->nrows);
 
     //point to device pointer in host
-    h_mat->rnorms = d_tempFPtr;
+    d_mat.rnorms = d_tempFPtr;
   }
 
   if (mat->rsums) {
     //copy device pointers rsums
-    cudaCopyCSRFArr(mat->rsums, d_tempFPtr, mat->nrows);
+    d_tempFPtr = cudaCopyCSRFArr(mat->rsums, mat->nrows);
 
     //point to device pointer in host
-    h_mat->rsums = d_tempFPtr;
+    d_mat.rsums = d_tempFPtr;
   }
 
   if (!isIndexed) {
-    return h_mat;
+    return d_mat;
   }
   //*** do same for column indexed
   //TODO: check whether column indexing actually necessary then only copy
@@ -111,48 +119,48 @@ cuda_csr_t *cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   assert(mat->colptr != NULL);
 
   //copy device pointers colptr
-  cudaCopyCSRIArr(mat->colptr, d_tempIPtr, (mat->ncols)+1);
+  d_tempIPtr = cudaCopyCSRIArr(mat->colptr, (mat->ncols)+1);
 
   //point to device pointer in host
-  h_mat->colptr = d_tempIPtr;  
+  d_mat.colptr = d_tempIPtr;  
 
   //allocate device pointers colind
-  cudaCopyCSRIArr(mat->colind, d_tempIPtr, nnz);
+  d_tempIPtr = cudaCopyCSRIArr(mat->colind, nnz);
 
   //point to device pointer in host
-  h_mat->colind = d_tempIPtr;  
+  d_mat.colind = d_tempIPtr;  
 
   //copy device pointers colvals
-  cudaCopyCSRFArr(mat->colval, d_tempFPtr, nnz);
+  d_tempFPtr = cudaCopyCSRFArr(mat->colval, nnz);
 
   //point to device pointer in host
-  h_mat->colval = d_tempFPtr;
+  d_mat.colval = d_tempFPtr;
 
   if (mat->colids) {
     //copy device pointers colids
-    cudaCopyCSRIArr(mat->colids, d_tempIPtr, mat->ncols);
+    d_tempIPtr = cudaCopyCSRIArr(mat->colids,  mat->ncols);
 
     //point to device pointer in host
-    h_mat->colids = d_tempIPtr;
+    d_mat.colids = d_tempIPtr;
   }
 
   if (mat->cnorms) {
     //copy device pointers rnorms
-    cudaCopyCSRFArr(mat->cnorms, d_tempFPtr, mat->ncols);
+    d_tempFPtr = cudaCopyCSRFArr(mat->cnorms, mat->ncols);
 
     //point to device pointer in host
-    h_mat->cnorms = d_tempFPtr;
+    d_mat.cnorms = d_tempFPtr;
   }
 
   if (mat->csums) {
     //copy device pointers rsums
-    cudaCopyCSRFArr(mat->csums, d_tempFPtr, mat->ncols);
+    d_tempFPtr = cudaCopyCSRFArr(mat->csums, mat->ncols);
 
     //point to device pointer in host
-    h_mat->csums = d_tempFPtr;
+    d_mat.csums = d_tempFPtr;
   }
-
-  return h_mat;
+  
+  return d_mat;
 }
 
 /*
@@ -231,11 +239,8 @@ void freeCudaCSR(cuda_csr_t *mat) {
 
 
 
-
-
-
-__global__ void cudaFindNeighbors(cuda_csr_t *d_QMat,
-				  cuda_csr_t *d_DMat,
+__global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
+				  cuda_csr_t d_DMat,
 				  float *d_sim) {
   
   int ii, i, j, k;
@@ -269,22 +274,29 @@ __global__ void cudaFindNeighbors(cuda_csr_t *d_QMat,
   
   int countKeyVal;
 
-  for (i = 0; i < *(d_DMat->nrows); i+=nThreads) {
+
+  /*if (thId == 0) {
+    printf("\nQ num rows: %d", *(d_QMat.nrows));
+    printf("\nD num rows: %d", *(d_DMat.nrows));
+    }*/
+
+  
+  for (i = 0; i < *(d_DMat.nrows); i+=nThreads) {
     sim[i] = 0.0;
   }
 
 
   //TODO: verify small p
-  colptr = d_DMat->colptr;
-  colind = d_DMat->colind;
-  colval = d_DMat->colval;
+  colptr = d_DMat.colptr;
+  colind = d_DMat.colind;
+  colval = d_DMat.colval;
 
   //get number of terms in doc blockId
-  nQTerms = d_QMat->rowptr[blockId+1] - d_QMat->rowptr[blockId];
+  nQTerms = d_QMat.rowptr[blockId+1] - d_QMat.rowptr[blockId];
   //get row indices of doc blockId
-  qInd = d_QMat->rowind + d_QMat->rowptr[blockId];
+  qInd = d_QMat.rowind + d_QMat.rowptr[blockId];
   //get nz values of doc blockId
-  qVal = d_QMat->rowval + d_QMat->rowptr[blockId];
+  qVal = d_QMat.rowval + d_QMat.rowptr[blockId];
   
   //marker to mark the candidates non-zero val
   
@@ -303,10 +315,10 @@ __global__ void cudaFindNeighbors(cuda_csr_t *d_QMat,
   }
 
   //copy the similarities to device
-  for (i = 0; i < *(d_DMat->nrows); i++) {
+  for (i = 0; i < *(d_DMat.nrows); i++) {
     d_sim[i] = sim[i];
   }
-
+  
 
   /*
   //compact the learned sim arrays and put it in key-val struct
@@ -314,7 +326,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t *d_QMat,
   preScan(sim, simPred, nrows);
   
   //scatter non-zero into simPred indices
-  for (i = thId, j = 0; i < *(d_DMat->nrows); i+=nThreads) {
+  for (i = thId, j = 0; i < *(d_DMat.nrows); i+=nThreads) {
     if (sim[i] != 0.0f) {
       //write key-val at location simPred[i]
       cand[simPred[i]].key = sim[i];
@@ -349,8 +361,8 @@ void cudaComputeNeighbors(params_t *params)
   int *nallhits;
   FILE *fpout;
 
-  cuda_csr_t *d_QMat; //query chunk
-  cuda_csr_t *d_DMat; //reference/ compared against query chunk
+  cuda_csr_t d_QMat; //query chunk
+  cuda_csr_t d_DMat; //reference/ compared against query chunk
   float *d_sim;//to comtain computed similarity values on device
   float *h_sim;//to contain computed similarity calues locally
   gk_csr_t *h_QMat;
@@ -378,6 +390,7 @@ void cudaComputeNeighbors(params_t *params)
   //allocate global memory for computed similarity chunk 
   cudaMalloc((void **) &d_sim, sizeof(float)*params->ndrows);
   h_sim = (float *)malloc(sizeof(float)*params->ndrows);
+  memset(h_sim, 0, sizeof(float)*params->ndrows);
 
   /* break the computations into chunks */
   for (qID=params->startid; qID<params->endid; qID+=params->nqrows) {
@@ -391,7 +404,7 @@ void cudaComputeNeighbors(params_t *params)
     //tODO: cudaMalloc
     h_QMat = gk_csr_ExtractSubmatrix(vault->mat, qID, nqrows);
 
-    ASSERT(d_QMat != NULL);
+    //ASSERT(d_QMat != NULL);
 
     //TODO: allocate space to store top similar docs, count in cuda mem
 
@@ -407,7 +420,7 @@ void cudaComputeNeighbors(params_t *params)
       //tODO: cudaMalloc
       h_DMat = gk_csr_ExtractSubmatrix(vault->mat, dID, ndrows);
 
-      ASSERT(d_DMat != NULL);
+      //ASSERT(d_DMat != NULL);
       gk_stopwctimer(params->timer_2);
       gk_startwctimer(params->timer_4);
       gk_csr_CreateIndex(h_DMat, GK_CSR_COL);
@@ -444,7 +457,6 @@ void cudaComputeNeighbors(params_t *params)
 	}
       }
 	
-
       gk_stopwctimer(params->timer_3);
 
       gk_csr_Free(&vault->pmat);
@@ -477,8 +489,6 @@ void cudaComputeNeighbors(params_t *params)
   
   //free cuda mem
   cudaFree(d_sim);
-  freeCudaCSR(d_QMat);
-  freeCudaCSR(d_DMat);
 
   return;
 }

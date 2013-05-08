@@ -16,7 +16,7 @@ STDLIBS = -lm
 
 #CFLAGS = $(COPTIONS) $(OMPOPTIONS) $(OPTFLAGS)
 #CFLAGS = $(COPTIONS) $(OMPOPTIONS)
-CFLAGS = -g -G $(OMPOPTIONS) 
+CFLAGS = -g -G -arch=sm_21 $(OMPOPTIONS) 
 LIBS = $(STDLIBS)
 
 SOURCE = getopt.c all_common.c all_cmdline.c util.c omp_nbrs.c omp_main.c cuda_nbrs.cu 
