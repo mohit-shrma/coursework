@@ -1,8 +1,7 @@
 #include <stdio.h>
 
-#define THREADS_PER_BLOCK 128
+#define THREADS_PER_BLOCK 512
 #define NUM_BLOCKS 1
-
 
 extern "C" 
 {
@@ -243,13 +242,14 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 				  cuda_csr_t d_DMat,
 				  float *d_sim) {
   
-  int ii, i, j, k;
+  int i, j, k;
   
   //query doc INDEX
   int blockId = blockIdx.x; 
 
   //threadId with in a block, DMat doc to start with
   int thId = threadIdx.x; 
+
   //number of threads in blocks
   int nThreads = blockDim.x;
 
@@ -281,12 +281,10 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
     }*/
 
   
-  for (i = 0; i < *(d_DMat.nrows); i+=nThreads) {
+  for (i = thId; i < *(d_DMat.nrows); i+=nThreads) {
     sim[i] = 0.0;
   }
 
-
-  //TODO: verify small p
   colptr = d_DMat.colptr;
   colind = d_DMat.colind;
   colval = d_DMat.colval;
@@ -301,21 +299,21 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   //marker to mark the candidates non-zero val
   
   //store non-zero hits and partial sum
-
   
   //for each query nnz do multiplications in parallel
   for (i = 0; i < nQTerms; i++) {
     //get non-zero col index of term in row
     j = qInd[i];
-    //perform multiplication with all elements of column j
+    //perform multiplication with all elements of column j in parallel
     for (k = colptr[j]+thId; k < colptr[j+1]; k+=nThreads) {
       //similarity doc colind[k] 
-      sim[colind[k]] += colval[k] * qVal[ii];
+      sim[colind[k]] += colval[k] * qVal[i];
     }
   }
 
+
   //copy the similarities to device
-  for (i = 0; i < *(d_DMat.nrows); i++) {
+  for (i = thId; i < *(d_DMat.nrows); i+=nThreads) {
     d_sim[i] = sim[i];
   }
   
@@ -447,7 +445,7 @@ void cudaComputeNeighbors(params_t *params)
       cudaFindNeighbors<<<NUM_BLOCKS, THREADS_PER_BLOCK, params->ndrows*sizeof(float)>>>(d_QMat, d_DMat, d_sim);
       
       //copy back to local mem
-      cudaMemcpy((void *)d_sim, (void*)h_sim, params->ndrows*sizeof(float),
+      cudaMemcpy((void *)h_sim, (void*)d_sim, params->ndrows*sizeof(float),
 		 cudaMemcpyDeviceToHost);
 
       //write the results to file
