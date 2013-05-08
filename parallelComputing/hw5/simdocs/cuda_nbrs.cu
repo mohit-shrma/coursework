@@ -41,7 +41,7 @@ cuda_csr_t *cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   //TODO:
   int nnz;
 
-  nnz = 0;
+  nnz = mat->rowptr[mat->nrows] - mat->rowptr[0];
   
   assert(nnz != 0);
 
@@ -382,7 +382,6 @@ void cudaComputeNeighbors(params_t *params)
   /* break the computations into chunks */
   for (qID=params->startid; qID<params->endid; qID+=params->nqrows) {
     nqrows = gk_min(params->nqrows, params->endid-qID);
-    gk_iset(nqrows, 0, nallhits);
 
     if (params->verbosity > 0)
       printf("Working on query chunk: %7d, %4d\n", qID, nqrows);
@@ -440,8 +439,8 @@ void cudaComputeNeighbors(params_t *params)
 
       //write the results to file
       if (fpout) {
-	for (i = 0; i < params->ndrows; i++) {
-	  fprintf(fpout, "%8d %8d %.3f\n", qID, dID, d_sim[i]);
+	for (i = 0; i < 20; i++) {
+	  fprintf(fpout, "%8d %8d %.3f\n", qID, dID+i, h_sim[i]);
 	}
       }
 	

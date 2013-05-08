@@ -156,7 +156,7 @@ cuda_csr_t *cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   return h_mat;
 }
 
-
+/*
 gk_csr_t *cuda_csr_ExtractSubmatrix(gk_cst_t *mat, int rstart, int nrows) {
   
   int i;
@@ -217,8 +217,7 @@ gk_csr_t *cuda_csr_ExtractSubmatrix(gk_cst_t *mat, int rstart, int nrows) {
   return d_nmat;
 
 }
-
-
+*/
 
 /* free cuda resources */
 void freeCudaCSR(cuda_csr_t *mat) {
