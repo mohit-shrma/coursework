@@ -57,7 +57,6 @@ __device__ void dispArr(int *arr, int n) {
 
   //threadId with in a block, DMat doc to start with
   int thId = threadIdx.x; 
-  
 
   if (thId == 0) {
     printf("\n");
@@ -66,15 +65,58 @@ __device__ void dispArr(int *arr, int n) {
     }
     printf("\n");
   }
-
-  
-
 }
+
+
+
+//works efficiently for power of 2
+__device__ void scan(int *arr, int n) {
+  
+  int i, j, prev, next, temp;
+
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+
+  //number of threads in blocks
+  int nThreads = blockDim.x;
+
+
+  //divide the simpred into nThreads blocks,
+  //scan each block in parallel, with next iteration using results from prev blocks
+  prev = 0;
+  next = 0;
+
+  for (i = 0; i < n; i += nThreads) {
+    dispArr(arr, n);
+    next = arr[i+nThreads-1];
+    if (n - i >= nThreads) {
+      preSubScan(arr + i, nThreads, (i>0?arr[i-1]:0) + prev);
+    } else {
+      //not power of 2 perform serial scan for others
+      //this will be last iteration of loop
+      if (thId == 0) {
+	for (j = i; j < n; j++) {
+	  temp = prev + arr[j-1];
+	  prev = arr[j];
+	  arr[j] = temp;
+	}
+      }      
+    }//end else
+    
+    prev = next;
+
+  }//end for
+
+  __syncthreads();
+} 
+
+
+
 
 
 //assuming no. of threads is power of 2
 //for best performance simPred is also power of 2
-__device__ void preScan(float *sim, int *simPred, int n) {
+__device__ void compact(float *sim, int *simPred, int n) {
   
   int i, temp, j, prev;
 
@@ -93,29 +135,7 @@ __device__ void preScan(float *sim, int *simPred, int n) {
 
   //divide the simpred into nThreads blocks,
   //scan each block in parallel, with next iteration using results from prev blocks
-
-  for (i = 0; i < n; i += nThreads) {
-    dispArr(simPred, n);
-    if (n - i >= nThreads) {
-      if (i > 0) {
-	preSubScan(simPred + i, nThreads, simPred[i-1]
-		   + (sim[i-1] > 0));
-      } else {
-	preSubScan(simPred, nThreads, 0);
-      }
-    } else {
-      //not power of 2 perform serial scan for others
-      if (thId == 0) {
-	prev = (sim[i-1] > 0);
-	for (j = i; j < n; j++) {
-	  temp = prev + simPred[j-1];
-	  prev = simPred[j];
-	  simPred[j] = temp;
-	}
-      }
-
-      }
-  }
+  scan(simPred, n);
 
 }
 
@@ -137,7 +157,7 @@ __global__ void compaction(float *d_in, float *d_keys, int *d_val, int *d_numKey
     simPred[i] = 0;
   }
 
-  preScan(d_in, simPred, n);
+  compact(d_in, simPred, n);
 
   for (i = thId; i < n; i+= nThreads) {
     if (d_in[i] != 0.0f) {
@@ -190,7 +210,7 @@ int main(int argc, char *argv[]) {
   cudaMalloc((void **)&d_keys, sizeof(float)*h_n);
   cudaMalloc((void **)&d_numKeys, sizeof(int)*1);
 
-  //preScan<<<1,4>>>(d_fArr, d_keys, h_n);
+  //compact<<<1,4>>>(d_fArr, d_keys, h_n);
   compaction<<<1,4, sizeof(int)*h_n>>>(d_fArr, d_keys, d_val, d_numKeys, h_n);
 
   cudaMemcpy((void *)h_numKeys, (void*)d_numKeys, sizeof(int),
