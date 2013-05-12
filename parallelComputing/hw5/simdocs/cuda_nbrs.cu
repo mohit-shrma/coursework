@@ -2,7 +2,8 @@
 
 #define THREADS_PER_BLOCK 512
 #define NUM_BLOCKS 1
-
+#define NUM_BITS 2
+#define DEBUG 0
 extern "C" 
 {
 #include "simdocs.h"
@@ -162,68 +163,6 @@ cuda_csr_t cudaCopyCSR(gk_csr_t *mat, int isIndexed) {
   return d_mat;
 }
 
-/*
-gk_csr_t *cuda_csr_ExtractSubmatrix(gk_cst_t *mat, int rstart, int nrows) {
-  
-  int i;
-  gk_csr_t *d_nmat;
-
-  if (rstart+nrows > mat->nrows)
-    return NULL;
-
-  d_nmat = cuda_csr_Create();
-
-  d_nmat->nrows  = nrows;
-  d_nmat->ncols  = mat->ncols;
-
-  //copy the row structure 
-  if (mat->rowptr) {
-    cudaMalloc((void **) &d_nmat->rowptr, sizeof(int) * (nrows + 1));
-    cudaMemcpy((void *) d_nmat->rowptr, mat->rowptr+rstart, nrows+1);
-  }
-
-  //TODO: can we access device mem here at host, won't this be inefficient
-  for (i=nrows; i>=0; i--)
-    d_nmat->rowptr[i] -= d_nmat->rowptr[0];
-
-  ASSERT(d_nmat->rowptr[0] == 0);
-
-  if (mat->rowids) {
-    cudaMalloc((void **) &d_nmat->rowids, sizeof(int)*nrows);
-    cudaMemcpy((void *) d_nmat->rowids, mat->rowids+rstart, nrows);
-  }
-
-  if (mat->rnorms) {
-    cudaMalloc((void **) &d_nmat->rnorms, sizeof(float)*nrows);
-    cudaMemcpy((void *) d_nmat->rnorms, mat->rnorms+rstart, nrows);
-  }
-
-  if (mat->rsums) {
-    cudaMalloc((void **) &d_nmat->rsums, sizeof(float)*nrows);
-    cudaMemcpy((void *) d_nmat->rsums, mat->rsums+rstart, nrows);
-  }
-
-  //TODO: again accessing device mem here
-  ASSERT(d_nmat->rowptr[nrows] == mat->rowptr[rstart+nrows]-mat->rowptr[rstart]);
-
-  if (mat->rowind) {
-    cudaMalloc((void **) &d_nmat->rowind, \
-	       sizeof(float)*mat->rowptr[rstart+nrows]-mat->rowptr[rstart]);
-    cudaMemcpy((void *) d_nmat->rowind, mat->rowind+mat->rowptr[rstart],\
-	       mat->rowptr[rstart+nrows]-mat->rowptr[rstart]);
-  }
-
-  if (mat->rowval) {
-    cudaMalloc((void **) &d_nmat->rowval,\
-	       sizeof(float)*mat->rowptr[rstart+nrows]-mat->rowptr[rstart]);
-    cudaMemcpy((void *) d_nmat->rowval, mat->rowval+mat->rowptr[rstart],\
-	       mat->rowptr[rstart+nrows]-mat->rowptr[rstart]);
-  }
-
-  return d_nmat;
-
-}
-*/
 
 /* free cuda resources */
 void freeCudaCSR(cuda_csr_t *mat) {
@@ -238,13 +177,391 @@ void freeCudaCSR(cuda_csr_t *mat) {
 
 
 
+//scan array arr of size n=nThreads, power of 2
+__device__ void preSubScan(int *arr, int n, int prev) {
+
+  int i, d, ai, bi, offset, temp;
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+
+  //number of threads in blocks
+  int nThreads = blockDim.x;
+
+  d = 0;
+  offset = 1;
+
+  //build sum in place up the tree
+  for (d = n>>1; d > 0; d >>=1) {
+    __syncthreads();
+    if (thId < d) {
+      ai = offset*(2*thId+1) - 1;
+      bi = offset*(2*thId+2) - 1;
+      arr[bi] += arr[ai];
+    }
+    offset*=2;
+  }
+  
+  //clear last element
+  if (thId == 0) {
+    arr[n-1] = 0;
+  }
+
+  //traverse down tree & build scan
+  for (int d = 1; d < n; d *=2) {
+    offset = offset >> 1;
+    __syncthreads();
+    if (thId < d) {
+      ai = offset*(2*thId + 1) - 1;
+      bi = offset*(2*thId + 2) - 1;
+      temp = arr[ai];
+      arr[ai] = arr[bi];
+      arr[bi] += temp;
+    }
+  }
+
+  for (i = thId; i < n; i+=nThreads) {
+    arr[i] += prev;
+  }
+
+  __syncthreads();
+}
+
+
+
+//works efficiently for power of 2
+__device__ void scan(int *arr, int n) {
+  
+  int i, j, prev, next, temp;
+
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+
+  //number of threads in blocks
+  int nThreads = blockDim.x;
+
+
+  //divide the simpred into nThreads blocks,
+  //scan each block in parallel, with next iteration using results from prev blocks
+  prev = 0;
+  next = 0;
+
+  for (i = 0; i < n; i += nThreads) {
+    //dispArr(arr, n);
+    next = arr[i+nThreads-1];
+    if (n - i >= nThreads) {
+      preSubScan(arr + i, nThreads, (i>0?arr[i-1]:0) + prev);
+    } else {
+      //not power of 2 perform serial scan for others
+      //this will be last iteration of loop
+      if (thId == 0) {
+	for (j = i; j < n; j++) {
+	  temp = prev + arr[j-1];
+	  prev = arr[j];
+	  arr[j] = temp;
+	}
+      }      
+    }//end else
+    
+    prev = next;
+
+  }//end for
+
+  __syncthreads();
+} 
+
+
+//assuming no. of threads is power of 2
+//for best performance simPred is also power of 2
+__device__ void compact(float *sim, int *simPred, int n, float minSim) {
+  
+  int i, temp, j, prev;
+
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+
+  //number of threads in blocks
+  int nThreads = blockDim.x;
+
+  for (i = thId; i < n; i+= nThreads) {
+    if (sim[i] >= minSim ) {
+      simPred[i] = 1;
+    }
+  }
+
+
+  //divide the simpred into blocks,
+  //scan each block in parallel, with next iteration using results from prev blocks
+  scan(simPred, n);
+
+}
+
+
+__device__ void d_dispFArr(float *arr, int n) {
+  int i;
+
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+  
+  if (thId == 0) {
+    printf("\n");
+    for (i = 0; i < n; i++) {
+      printf(" %f ", arr[i]);
+    }
+    printf("\n");
+  }
+
+}
+
+
+__device__ void dispArr(int *arr, int n) {
+  
+  int i;
+
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+  
+
+  if (thId == 0) {
+    printf("\n");
+    for (i = 0; i < n; i++) {
+      printf(" %d ", arr[i]);
+    }
+    printf("\n");
+  }
+}
+
+
+//assuming sizeof int == sizeof float
+__device__ void computeAtomicHisto(int *aggHisto, float *arrElem, int numElem,
+				   int numBits, int bitpos) {
+  
+  int i, j;
+  int numBuckets = 1 << numBits;
+  int mask = (1 << numBits) - 1;
+  int key;
+  void *vptr;
+  int *iptr;
+  //thread id within a block
+  int threadId = threadIdx.x;
+  
+  //number of threads in block
+  int nThreads = blockDim.x;
+
+  for (i = threadId; i < numElem; i+=nThreads) {
+    vptr = (void*)(arrElem + i);
+    iptr = (int*)vptr;
+    key =   ( (*iptr) >> bitpos)  & mask;
+    atomicAdd(&(aggHisto[key]), 1);
+  }
+
+}
+
+//assuming sizeof int == sizeof float
+__device__ void writeSortedVals(int *aggHisto, float *fromKeys, float *toKeys,
+				int *fromVals, int *toVals,
+				int numBits, int bitpos, int n) {
+  int i, key;
+  int mask = (1 << numBits) - 1;
+  void *vptr;
+  int *iptr;
+
+  for (i = 0; i < n; i++) {
+    vptr = (void*)(fromKeys + i);
+    iptr = (int*)vptr;
+
+    key = (  (*iptr) >> bitpos) & mask;
+
+    if (DEBUG) {
+      printf("toKeys[%d] = %f\n", aggHisto[key], fromKeys[i]);
+    }
+
+    toKeys[aggHisto[key]] = fromKeys[i];
+    toVals[aggHisto[key]] = fromVals[i];
+    aggHisto[key]++;
+  }
+}
+
+
+__device__ void zeroedInt(int *arr, int count) {
+  int i;
+  
+  //thread id within a block
+  int threadId = threadIdx.x;
+  
+  //number of threads in block
+  int nThreads = blockDim.x;
+
+  for (i = threadId; i < count; i+=nThreads) {
+    arr[i] = 0;
+  }
+}
+
+
+
+
+//shared mem space for aggregated histogram
+//numbits means bits at a time
+__device__ void radixSort(float *fromKeys, float *toKeys,
+			  int *fromVals, int *toVals,
+			  int *aggHisto,
+			  int n, int numBits) {
+  
+  int i, j, elemPerThread;
+
+  //get current block number
+  int blockId = blockIdx.x;
+  
+  //thread id within a block
+  int threadId = threadIdx.x;
+
+  //number of threads in block
+  int nThreads = blockDim.x;
+
+  //global thread id
+  int globalThreadId = blockIdx.x * blockDim.x + threadIdx.x;
+
+  //shared mem space to copy array to be sorted
+  float *tempFSwap;
+  int *tempISwap;
+
+  //bucket size
+  int bucketSize = 1 << numBits;
+
+
+  if (threadId == 0 && DEBUG) {
+    printf("\n fromKeys:  ");
+    d_dispFArr(fromKeys, n);
+  }
+
+
+  //for each numbits chunk do following
+  for (i = 0; i < sizeof(float)*8; i+=numBits) {
+    //reset histogram
+    zeroedInt(aggHisto, bucketSize);
+
+    if (threadId == 0 && DEBUG) {
+      printf("\n fromKeysay b4 histo :  ");
+      d_dispFArr(fromKeys, n);
+    }
+
+    //aggregate in histogram in shared mem
+    computeAtomicHisto(aggHisto, fromKeys, n,
+		       numBits, i);
+
+    if (threadId == 0 && DEBUG) {
+      printf("\naggHisto, bitpos:%d:", i);
+      dispArr(aggHisto, bucketSize);
+      printf("\n fromKeysay after histo :  ");
+      d_dispFArr(fromKeys, n);
+    }
+    
+    //perform scan on aggHisto (assuming power of 2)
+    scan(aggHisto, bucketSize);
+
+    if (threadId == 0 && DEBUG) {
+      printf("\naggHisto after scan, bitpos:%d:", i);
+      dispArr(aggHisto, bucketSize);
+    }
+
+    __syncthreads();
+
+    if (threadId == 0) {
+      //copy values to correct output by a single thread
+      writeSortedVals(aggHisto, fromKeys, toKeys,
+		      fromVals, toVals,
+		      numBits, i, n);
+
+    }
+    __syncthreads();
+
+    if (threadId == 0 && DEBUG) {
+      printf("\n sorted:  ");
+      d_dispFArr(toKeys, n);
+    }
+
+    //toKeys contains the sorted arr, for the next iteration point fromKeys to this location
+    tempFSwap = toKeys;
+    toKeys = fromKeys;
+    fromKeys = tempFSwap;  
+
+    //toVals contains the sorted vals by keys,
+    //for the next iteration point fromVals to this location
+    tempISwap = toVals;
+    toVals = fromVals;
+    fromVals = tempISwap;  
+
+  }
+
+  //at this point fromKeys and fromVal will contain sorted arr in mem
+ 
+}
+
+
+//linearly merge two sorted keys into third one
+__device__ void linearMerge(float *oldTopKeys, int *oldTopVal,
+			    float *currKeys, int *currVal,
+			    float *newTopKeys, int *newTopVal,
+			    int k, int newArrLen) {
+  int i, oldPtr, currPtr;
+
+
+  for (i = 0, oldPtr=k-1, currPtr=newArrLen-1;
+       i < k && oldPtr > 0 && currPtr > 0; i++) {
+    if (oldTopKeys[oldPtr] > currKeys[currPtr]) {
+      newTopKeys[i] = oldTopKeys[oldPtr];
+      newTopVal[i] = oldTopVal[oldPtr];
+      oldPtr--;
+    } else {
+      newTopKeys[i] = currKeys[currPtr];
+      newTopVal[i] = currVal[currPtr];
+      currPtr--;
+    }
+  }
+
+  if (i < k) {
+    //one of the array exhausted while merging
+    if (currPtr < 0) {
+      //exhausted current similarity space
+      while (i < k && oldPtr > 0) {
+	//add remaining values from old top ks
+	newTopKeys[i] = oldTopKeys[oldPtr];
+	newTopVal[i] = oldTopVal[oldPtr];
+	oldPtr--;
+	i++;
+      }
+    } else if (oldPtr < 0) {
+      //exhausted old similarities space
+      while (i < k && currPtr > 0) {
+	//add remaining values from currents
+	newTopKeys[i] = currKeys[currPtr];
+	newTopVal[i] = currVal[currPtr];
+	currPtr--;
+	i++;
+      }
+    }
+  }
+  
+  
+}
+
+
+
+
+/* d_QMat - contains query documents 
+ * d_DMat - contains document to query against
+ * d_sim  - previous top -k similarities, will write to this the new top-k
+ * k      - number of top similarities to look for
+ * 
+ */
 __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 				  cuda_csr_t d_DMat,
-				  float *d_sim) {
+				  float *d_topK_keys, //similarity values
+				  int *d_topK_vals,   //index of computed similarities
+				  int k, int numBits, float minSim) {
   
-  int i, j, k;
+  int i, j;
   
-  //query doc INDEX
+  //query doc index
   int blockId = blockIdx.x; 
 
   //threadId with in a block, DMat doc to start with
@@ -256,23 +573,38 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   int nQTerms, nSim;
   int *qInd, *colptr, *colind;
   float *qVal, *colval;
-
-  //cuda_csr_t *dQMat = &d_QMat;
-  //cuda_csr_t *dDMat = &d_DMat;
-
-  extern __shared__ float sim[];
-  //TODO: allocate this on invocation
-  //also how to allocate float of size DMat->nrows
-
-  //__shared__ float sim[]; //nrows
-  //__shared__ int simPred[]; //nrows
-
-  //float *sim = &s[0]; // shred mem for floats
-
-  //TODO:key is similarity computed and value is doc with which similarity
-  //__shared__ gk_fkv_t cand[];
-  
   int countKeyVal;
+
+  extern __shared__ int s[];
+  
+  //shared memory for predicates
+  int *simPred = s;
+
+  //shared memory to store similarities
+  float *sim = (float*) &s[*(d_DMat.nrows)];
+  
+  //shared memory to store compacted keys & values
+  float *compactKeys = (float *) &sim[*(d_DMat.nrows)];
+  int *compactVals = (int *) &compactKeys[*(d_DMat.nrows)]; 
+  
+  //shared memory to store keys and values for radix sort op
+  //can use previous offset as it won't be used after compaction
+  float *toKeys = sim; 
+  int *toVals = (int*) &compactVals[*(d_DMat.nrows)];
+
+  //shared memory to store histogram
+  int *aggHisto = (int*) &toVals[1<<numBits];
+
+  //shared memory storing old top keys & val
+  float *oldTopKeys = (float *) &aggHisto[k]; //copy from device mem
+  int *oldTopVal = (int *) &oldTopKeys[k]; //copy from device mem
+
+
+  //copy to shared mem old top-k values and keys
+  for (i = thId; i < k; i+= nThreads) {
+    oldTopKeys[i] = d_topK_keys[i];
+    oldTopVal[i] = d_topK_vals[i];
+  }
 
 
   /*if (thId == 0) {
@@ -280,9 +612,10 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
     printf("\nD num rows: %d", *(d_DMat.nrows));
     }*/
 
-  
+  //set to zero similarity and simPreds
   for (i = thId; i < *(d_DMat.nrows); i+=nThreads) {
     sim[i] = 0.0;
+    simPred[i] = 0;
   }
 
   colptr = d_DMat.colptr;
@@ -296,10 +629,6 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   //get nz values of doc blockId
   qVal = d_QMat.rowval + d_QMat.rowptr[blockId];
   
-  //marker to mark the candidates non-zero val
-  
-  //store non-zero hits and partial sum
-  
   //for each query nnz do multiplications in parallel
   for (i = 0; i < nQTerms; i++) {
     //get non-zero col index of term in row
@@ -312,35 +641,39 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   }
 
 
-  //copy the similarities to device
-  for (i = thId; i < *(d_DMat.nrows); i+=nThreads) {
-    d_sim[i] = sim[i];
-  }
-  
-
-  /*
   //compact the learned sim arrays and put it in key-val struct
   //find the non-zero indices here by  scan
-  preScan(sim, simPred, nrows);
+  compact(sim, simPred, *(d_DMat.nrows), minSim);
   
   //scatter non-zero into simPred indices
   for (i = thId, j = 0; i < *(d_DMat.nrows); i+=nThreads) {
     if (sim[i] != 0.0f) {
       //write key-val at location simPred[i]
-      cand[simPred[i]].key = sim[i];
-      cand[simPred[i]].val = i;
+      compactKeys[simPred[i]] = sim[i];
+      compactVals[simPred[i]] = i;
     }
   }
-  
-  //total non-zero key val -> simPred[nrows]+1
-  if (sim[nrows-1] != 0.0f) {
-    countKeyVal = simPred[nrows-1] + 1;
-  } else  {
-    countKeyVal = simPred[nrows-1];
-  }
-  */
-  //perform radix sort by keys
 
+  //total non-zero key val -> simPred[nrows]+1
+  if (sim[(*(d_DMat.nrows))-1] != 0.0f) {
+    countKeyVal = simPred[(*(d_DMat.nrows))-1] + 1;
+  } else  {
+    countKeyVal = simPred[(*(d_DMat.nrows))-1];
+  }
+
+
+  //sort compact keys and corresponding vals
+  radixSort(compactKeys, toKeys,
+	    compactVals, toVals,
+	    aggHisto,
+	    countKeyVal, numBits);
+
+  //linear merge to get topk keys and vals & write it out to device
+  //TODO: think of a way to do this in parallel
+  linearMerge(oldTopKeys, oldTopVal,
+	      compactKeys, compactVals,
+	      d_topK_keys, d_topK_vals,
+	      k, countKeyVal);
 
 }
 
@@ -352,17 +685,21 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 /**************************************************************************/
 void cudaComputeNeighbors(params_t *params)
 {
-  int i, j, qID, dID, nqrows, ndrows;
+  int i, j, k, qID, dID, nqrows, ndrows;
   vault_t *vault;
-  gk_csr_t *mat;
-  sim_t **allhits;
-  int *nallhits;
   FILE *fpout;
 
   cuda_csr_t d_QMat; //query chunk
   cuda_csr_t d_DMat; //reference/ compared against query chunk
-  float *d_sim;//to comtain computed similarity values on device
-  float *h_sim;//to contain computed similarity calues locally
+
+  //top k similarities and docs found till now
+  float *h_topK_keys;
+  int *h_topK_vals;
+
+  //device space to copy top k from host
+  float *d_topK_keys; 
+  int *d_topK_vals;
+
   gk_csr_t *h_QMat;
   gk_csr_t *h_DMat;
 
@@ -385,10 +722,18 @@ void cudaComputeNeighbors(params_t *params)
 
   gk_startwctimer(params->timer_1);
 
-  //allocate global memory for computed similarity chunk 
-  cudaMalloc((void **) &d_sim, sizeof(float)*params->ndrows);
-  h_sim = (float *)malloc(sizeof(float)*params->ndrows);
-  memset(h_sim, 0, sizeof(float)*params->ndrows);
+
+  //count to be selected
+  k = params->nnbrs;
+
+  //allocate device memory for computed top-k similarity chunk 
+  cudaMalloc((void **) &d_topK_keys, sizeof(float)*k);
+  cudaMalloc((void **) &d_topK_vals, sizeof(int)*k);
+
+  //allocate host memory for computed top-k similarity chunk 
+  h_topK_keys = (float *) malloc(sizeof(float)*k);
+  h_topK_vals = (int *) malloc(sizeof(int)*k);
+
 
   /* break the computations into chunks */
   for (qID=params->startid; qID<params->endid; qID+=params->nqrows) {
@@ -405,6 +750,16 @@ void cudaComputeNeighbors(params_t *params)
     //ASSERT(d_QMat != NULL);
 
     //TODO: allocate space to store top similar docs, count in cuda mem
+    //reset top k for each similarity
+    memset(h_topK_keys, 0, sizeof(float)*k);
+    memset(h_topK_vals, 0, sizeof(int)*k);
+    //reset and copy to device mem
+    cudaMemcpy((void *)d_topK_keys, (void*)h_topK_keys,
+	       params->ndrows*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy((void *)d_topK_vals, (void*)h_topK_vals,
+	       params->ndrows*sizeof(int), cudaMemcpyHostToDevice);
+    
+    
 
     /* find the neighbors of the chunk */ 
     for (dID=0; dID<vault->ndocs; dID+=params->ndrows) {
@@ -436,41 +791,36 @@ void cudaComputeNeighbors(params_t *params)
       /* spawn the work threads */
       gk_startwctimer(params->timer_3);
 
-      //pass these matrices by value
-      //dim3 dimBlock(NUM_THREADS_PER_BLOCK);//32 or avg number of nnz in columns
-      //dim3 dimGrid(NUM_BLOCKS); // number of query row in chunk
-      //kernel<<<dimGrid, dimBlock>>>(d_QMat, d_DMat);
-
-     
-      cudaFindNeighbors<<<NUM_BLOCKS, THREADS_PER_BLOCK, params->ndrows*sizeof(float)>>>(d_QMat, d_DMat, d_sim);
+      //launch kernel
+      //shared mem float:sim[ndrows],compactKeys[ndrows],oldTopKeys[k],
+      //int:simPred[ndrows], compactVals[ndrows],oldTopVal[k],toVals[ndrows],
+      //aggHisto[1<<NUM_BITS]
+      cudaFindNeighbors<<<NUM_BLOCKS, THREADS_PER_BLOCK,
+	(params->ndrows*2 + k)*sizeof(float) +
+	(params->ndrows*3 + k + (1<<NUM_BITS) )*sizeof(int) 
+	>>>(d_QMat, d_DMat, d_topK_keys, d_topK_vals,
+	    k, NUM_BITS, params->minsim);
       
-      //copy back to local mem
-      cudaMemcpy((void *)h_sim, (void*)d_sim, params->ndrows*sizeof(float),
-		 cudaMemcpyDeviceToHost);
-
-      //write the results to file
-      if (fpout) {
-	for (i = 0; i < 20; i++) {
-	  fprintf(fpout, "%8d %8d %.3f\n", qID, dID+i, h_sim[i]);
-	}
-      }
-	
       gk_stopwctimer(params->timer_3);
 
       gk_csr_Free(&vault->pmat);
     }
 
+    //copy back to host mem
+    cudaMemcpy((void *)h_topK_keys, (void*)d_topK_keys,
+	       params->ndrows*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy((void *)h_topK_vals, (void*)d_topK_vals,
+	       params->ndrows*sizeof(int), cudaMemcpyDeviceToHost);
+    
     //cuda copy knn for the query
-
-    /* write the results in the file */
-    /*if (fpout) {
-      for (i=0; i<nqrows; i++) {
-        for (j=0; j<nallhits[i]; j++) {
-          fprintf(fpout, "%8d %8d %.3f\n", qID+i, allhits[i][j].pid, allhits[i][j].sim.f);
-        }
+    //write the results to file
+    if (fpout) {
+      //TODO: zeroe the array in case prunnig to strict dont print garbage
+      for (i = 0; i < k; i++) {
+	fprintf(fpout, "%8d %8d %.3f\n", qID, h_topK_vals[i], h_topK_keys[i]);
       }
-    }*/
-
+    }
+    
   }
 
   gk_stopwctimer(params->timer_1);
@@ -483,76 +833,17 @@ void cudaComputeNeighbors(params_t *params)
 
   FreeVault(vault);
 
-  free(d_sim);
-  
-  //free cuda mem
-  cudaFree(d_sim);
+  cudaFree(d_topK_keys);
+  cudaFree(d_topK_vals);
+  free(h_topK_keys);
+  free(h_topK_vals);
 
   return;
 }
 
 
 
-/*
-__device__ void preScan(float *sim, int *simPred, int n) {
-  int ai, bi;
-  int thId = threadIdx.x;
-  int d = 0, offset = 1;
-  int temp;
 
-  if (sim[2*thId] != 0.0f) {
-    simPred[2*thId] = 1;
-  } else {
-    simPred[2*thId] = 0;
-  }
-
-  if (sim[2*thId + 1] != 0.0f) {
-    simPred[2*thId + 1] = 1;
-  } else {
-     simPred[2*thId + 1] = 0;
-  }
-
-  //build sum in place
-  for (d = n>>1; d > 0; d >>=1) {
-    __syncthreads();
-    if (thId < d) {
-      ai = offset*(2*thId+1) - 1;
-      bi = offset*(2*thId+2) - 1;
-      simPred[bi] += simPred[ai];
-    }
-    offset*=2;
-  }
-  
-  //clear last element
-  if (thId == 0) {
-    simPred[n-1] = 0;
-  }
-
-  //traverse down tree & build scan
-  for (int d = 1; d < n; d *=2) {
-    offset >> = 1;
-    __syncthreads();
-    if (thId < d) {
-      ai = offset*(2*thId + 1) - 1;
-      bi = offset*(2*thId + 2) - 1;
-      temp = simPred[ai];
-      simPred[ai] = simPred[bi];
-      simPred[bi] += temp;
-    }
-  }
-
-  __syncthreads();
-  
-}
-
-
-
-
-__device__ int cuda_csr_GetSimilarRows() {
-  
-}
-
-*/
 
 
  
