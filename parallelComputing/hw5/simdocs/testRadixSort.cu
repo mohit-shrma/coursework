@@ -5,6 +5,22 @@
 #define DEBUG 1
 
 
+__device__ void dispArr(int *arr, int n) {
+  
+  int i;
+
+  //threadId with in a block, DMat doc to start with
+  int thId = threadIdx.x; 
+  
+
+  if (thId == 0) {
+    printf("\n");
+    for (i = 0; i < n; i++) {
+      printf(" %d ", arr[i]);
+    }
+    printf("\n");
+  }
+}
 
 
 
@@ -76,20 +92,39 @@ __device__ void scan(int *arr, int n) {
   prev = 0;
   next = 0;
 
+
   for (i = 0; i < n; i += nThreads) {
-    //dispArr(arr, n);
-    next = arr[i+nThreads-1];
+    dispArr(arr, n);
+    next = 0;
+
+    if (i+nThreads-1 < n)
+      next = arr[i+nThreads-1];
+    
+
     if (n - i >= nThreads) {
+      if (thId == 0) {
+	printf("\ncalling presub scan i=%d nThreads=%d", i, nThreads);
+      }
       preSubScan(arr + i, nThreads, (i>0?arr[i-1]:0) + prev);
     } else {
       //not power of 2 perform serial scan for others
       //this will be last iteration of loop
+
       if (thId == 0) {
+	printf("\ndoing naive scan i=%d nThreads=%d", i, nThreads);
+	dispArr(arr, n);
 	for (j = i; j < n; j++) {
-	  temp = prev + arr[j-1];
+	  
+	  if (j > 0)
+	    temp = prev + arr[j-1];
+	  else
+	    temp = prev;
+
 	  prev = arr[j];
 	  arr[j] = temp;
+	  printf("\ntemp=%d prev=%d arr[%d]=%d", temp, prev, j, arr[j]);
 	}
+	dispArr(arr, n);
       }      
     }//end else
     
@@ -117,23 +152,6 @@ __device__ void d_dispFArr(float *arr, int n) {
 
 }
 
-
-__device__ void dispArr(int *arr, int n) {
-  
-  int i;
-
-  //threadId with in a block, DMat doc to start with
-  int thId = threadIdx.x; 
-  
-
-  if (thId == 0) {
-    printf("\n");
-    for (i = 0; i < n; i++) {
-      printf(" %d ", arr[i]);
-    }
-    printf("\n");
-  }
-}
 
 
 //assuming sizeof int == sizeof float
@@ -262,7 +280,7 @@ __device__ void radixSort(float *fromKeys, float *toKeys,
     if (threadId == 0 && DEBUG) {
       printf("\naggHisto, bitpos:%d:", i);
       dispArr(aggHisto, bucketSize);
-      printf("\n fromKeysay after histo :  ");
+      printf("\n fromKey after histo :  ");
       d_dispFArr(fromKeys, n);
     }
     
@@ -390,7 +408,7 @@ int main(int argc, char *argv[]) {
   cudaMalloc((void **) &d_val, sizeof(int)*n);
   cudaMemcpy((void *) d_val, (void *) h_iVal, sizeof(int)*n, cudaMemcpyHostToDevice );
 
-  testRadixSort<<<1, 2,
+  testRadixSort<<<1, 128,
     sizeof(int)*(2*n + (1<<numBits))
     + sizeof(float)*(2*n)>>>(d_keys, d_val, n);
 

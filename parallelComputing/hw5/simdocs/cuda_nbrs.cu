@@ -1,9 +1,10 @@
 #include <stdio.h>
 
-#define THREADS_PER_BLOCK 4
+#define THREADS_PER_BLOCK 64
 #define NUM_BLOCKS 1
 #define NUM_BITS 2
 #define DEBUG 0
+
 extern "C" 
 {
 #include "simdocs.h"
@@ -227,7 +228,7 @@ __device__ void preSubScan(int *arr, int n, int prev) {
 }
 
 
-
+//TODO: implement efficient block scan, looks messed up
 //works efficiently for power of 2
 __device__ void scan(int *arr, int n) {
   
@@ -247,7 +248,11 @@ __device__ void scan(int *arr, int n) {
 
   for (i = 0; i < n; i += nThreads) {
     //dispArr(arr, n);
-    next = arr[i+nThreads-1];
+    next = 0;
+
+    if (i+nThreads-1 < n)
+      next = arr[i+nThreads-1];
+
     if (n - i >= nThreads) {
       preSubScan(arr + i, nThreads, (i>0?arr[i-1]:0) + prev);
     } else {
@@ -255,6 +260,12 @@ __device__ void scan(int *arr, int n) {
       //this will be last iteration of loop
       if (thId == 0) {
 	for (j = i; j < n; j++) {
+
+	  if (j > 0)
+	    temp = prev + arr[j-1];
+	  else
+	    temp = prev;
+
 	  temp = prev + arr[j-1];
 	  prev = arr[j];
 	  arr[j] = temp;
@@ -294,26 +305,32 @@ __device__ void compact(float *sim, int *simPred, int n, float minSim) {
     }
   }
   
-  if (thId == 0)
-    printf("\nbefore compaction compCount:%d: ", compactCount);
-  for (i = thId; i < n; i+= nThreads) {
-    if (sim[i] >= minSim ) {
-      printf("simPred[%d]=%d ", i, simPred[i]);
-    }
-  }  
 
+  if (DEBUG) {
+    if (thId == 0 ) {
+      printf("\nbefore compaction compCount:%d: ", compactCount);
+    }
+    for (i = thId; i < n; i+= nThreads) {
+      if (sim[i] >= minSim ) {
+	printf("simPred[%d]=%d ", i, simPred[i]);
+      }
+    }  
+  }
 
   //divide the simpred into blocks,
   //scan each block in parallel, with next iteration using results from prev blocks
   scan(simPred, n);
 
-  if (thId == 0)
-    printf("\nafter compaction");
-  for (i = thId; i < n; i+= nThreads) {
-    if (sim[i] >= minSim ) {
-      printf("simPred[%d]=%d ", i, simPred[i]);
-    }
-  }  
+  
+  if (DEBUG) {
+    if (thId == 0)
+      printf("\nafter compaction");
+    for (i = thId; i < n; i+= nThreads) {
+      if (sim[i] >= minSim ) {
+	printf("simPred[%d]=%d ", i, simPred[i]);
+      }
+    }  
+  }
 
   __syncthreads();
 }
@@ -524,16 +541,18 @@ __device__ void radixSort(float *fromKeys, float *toKeys,
 __device__ void linearMerge(float *oldTopKeys, int *oldTopVal,
 			    float *currKeys, int *currVal,
 			    float *newTopKeys, int *newTopVal,
-			    int k, int newArrLen) {
+			    int kCount, int newArrLen) {
   int i, oldPtr, currPtr;
 
+  //currKeys are sorted in increasing order
+  //previous k are in decreasing order
 
-  for (i = 0, oldPtr=k-1, currPtr=newArrLen-1;
-       i < k && oldPtr > 0 && currPtr > 0; i++) {
+  for (i = 0, oldPtr=0, currPtr=newArrLen-1;
+       i < kCount && oldPtr < kCount && currPtr > 0; i++) {
     if (oldTopKeys[oldPtr] > currKeys[currPtr]) {
       newTopKeys[i] = oldTopKeys[oldPtr];
       newTopVal[i] = oldTopVal[oldPtr];
-      oldPtr--;
+      oldPtr++;
     } else {
       newTopKeys[i] = currKeys[currPtr];
       newTopVal[i] = currVal[currPtr];
@@ -541,20 +560,20 @@ __device__ void linearMerge(float *oldTopKeys, int *oldTopVal,
     }
   }
 
-  if (i < k) {
+  if (i < kCount) {
     //one of the array exhausted while merging
     if (currPtr < 0) {
       //exhausted current similarity space
-      while (i < k && oldPtr > 0) {
+      while (i < kCount && oldPtr < kCount) {
 	//add remaining values from old top ks
 	newTopKeys[i] = oldTopKeys[oldPtr];
 	newTopVal[i] = oldTopVal[oldPtr];
-	oldPtr--;
+	oldPtr++;
 	i++;
       }
-    } else if (oldPtr < 0) {
+    } else if (oldPtr >= kCount) {
       //exhausted old similarities space
-      while (i < k && currPtr > 0) {
+      while (i < kCount && currPtr > 0) {
 	//add remaining values from currents
 	newTopKeys[i] = currKeys[currPtr];
 	newTopVal[i] = currVal[currPtr];
@@ -580,9 +599,9 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 				  cuda_csr_t d_DMat,
 				  float *d_topK_keys, //similarity values
 				  int *d_topK_vals,   //index of computed similarities
-				  int k, int numBits, float minSim) {
+				  int kCount, int numBits, float minSim, int dID) {
   
-  int i, j;
+  int i, j, k;
   
   //query doc index
   int blockId = blockIdx.x; 
@@ -630,20 +649,30 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 
   //shared memory storing old top keys & val
   float *oldTopKeys = (float *) &aggHisto[numBuckets]; //copy from device mem
-  int *oldTopVal = (int *) &oldTopKeys[k]; //copy from device mem
+  int *oldTopVal = (int *) &oldTopKeys[kCount]; //copy from device mem
 
 
   //copy to shared mem old top-k values and keys
-  for (i = thId; i < k; i+= nThreads) {
-    oldTopKeys[i] = d_topK_keys[i];
-    oldTopVal[i] = d_topK_vals[i];
+  for (i = thId; i < kCount; i+= nThreads) {
+    oldTopKeys[i] = (d_topK_keys + (blockId*kCount))[i];
+    oldTopVal[i] = (d_topK_vals + (blockId*kCount))[i];
   }
 
 
-  /*if (thId == 0) {
+  if (DEBUG && thId == 0 ) {
+    printf("\nb4 kernel computation: ");
+    for (i = 0; i < kCount; i++) {
+      printf(" %f %d, ", (d_topK_keys + (blockId*kCount))[i],
+	     (d_topK_vals  + (blockId*kCount))[i]);
+    }
+  }
+
+
+
+  if (DEBUG && thId == 0) {
     printf("\nQ num rows: %d", *(d_QMat.nrows));
     printf("\nD num rows: %d", numDMatRows);
-    }*/
+  }
 
   //set to zero similarity and simPreds
   for (i = thId; i < numDMatRows; i+=nThreads) {
@@ -655,6 +684,10 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   colind = d_DMat.colind;
   colval = d_DMat.colval;
 
+
+  //TODO: work on query specific to block
+  //TODO: dont work if there is no query for the block
+
   //get number of terms in doc blockId
   nQTerms = d_QMat.rowptr[blockId+1] - d_QMat.rowptr[blockId];
   //get row indices of doc blockId
@@ -662,6 +695,11 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   //get nz values of doc blockId
   qVal = d_QMat.rowval + d_QMat.rowptr[blockId];
   
+  if (thId == 0 && DEBUG) {
+    printf("\nblock: %d nQterms: %d", blockId, nQTerms);
+  }
+
+
   //for each query nnz do multiplications in parallel
   for (i = 0; i < nQTerms; i++) {
     //get non-zero col index of term in row
@@ -674,7 +712,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   }
 
   
-  if (thId == 0) {
+  if (thId == 0 && DEBUG) {
     printf("simPred[0] :%d, simPred[1] :%d, simPred[2] :%d",
 	   simPred[0], simPred[1], simPred[2]);
   }
@@ -684,7 +722,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   //find the non-zero indices here by  scan
   compact(sim, simPred, numDMatRows, minSim);
   
-  if (thId == 0) {
+  if (thId == 0 && DEBUG) {
     printf("\nsimPred[0] :%d, simPred[1] :%d, simPred[2] :%d",
 	   simPred[0], simPred[1], simPred[2]);
   }
@@ -694,12 +732,16 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   //scatter non-zero into simPred indices
   for (i = thId, j = 0; i < numDMatRows; i+=nThreads) {
     if (sim[i] >= minSim) {
-      atomicAdd(&shNNZCount, 1);
+      //atomicAdd(&shNNZCount, 1);
       //write key-val at location simPred[i]
       compactKeys[simPred[i]] = sim[i];
-      compactVals[simPred[i]] = i;
-      printf("\ni=%d compactKeys[%d] = %f", i, simPred[i] , sim[i]);
+      compactVals[simPred[i]] = i + dID; //added offset of current dMat from others
+      //printf("\ni=%d compactKeys[%d] = %f", i, simPred[i] , sim[i]);
     }
+  }
+
+  if (DEBUG && thId == 0) {
+    printf("\nblock: %d compactKeys[0]:%f", blockId, compactKeys[0]);
   }
 
   __syncthreads();
@@ -715,14 +757,14 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
     countKeyVal = simPred[(numDMatRows)-1];
   }
 
-  if (thId == 0) {
+  if (thId == 0 && DEBUG) {
     printf("\natomic count: %d", shNNZCount);
     printf("\ncountKeyVal: %d", countKeyVal);
   }
 
 
   //before sorting
-  if (thId == 0) {
+  if (thId == 0 && DEBUG) {
     printf("\n before sorting: \n");
     for (i = 0; i < countKeyVal; i++) {
       printf(" %f %d, ", compactKeys[i], compactVals[i]);
@@ -736,19 +778,42 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 	    countKeyVal, numBits);
 
   //after sorting
-  if (thId == 0) {
+  if (thId == 0 && DEBUG) {
     printf("\n after sorting: \n");
     for (i = 0; i < countKeyVal; i++) {
       printf(" %f %d, ", compactKeys[i], compactVals[i]);
     }
   }
+  __syncthreads();
 
   //linear merge to get topk keys and vals & write it out to device
   //TODO: think of a way to do this in parallel
-  linearMerge(oldTopKeys, oldTopVal,
-	      compactKeys, compactVals,
-	      d_topK_keys, d_topK_vals,
-	      k, countKeyVal);
+
+  if (DEBUG && thId == 0 ) {
+    printf("\nbefore linear merge: ");
+    for (i = 0; i < kCount; i++) {
+      printf(" %f %d, ", (d_topK_keys+ (blockId*kCount))[i],
+	     (d_topK_vals+ (blockId*kCount))[i]);
+    }
+  }
+
+  if (thId == 0) {
+    linearMerge(oldTopKeys, oldTopVal,
+		compactKeys, compactVals,
+		d_topK_keys + (blockId*kCount),
+		d_topK_vals + (blockId*kCount),
+		kCount, countKeyVal);
+  }
+
+  if (DEBUG && thId == 0 ) {
+    printf("\nafter linear merge: ");
+    for (i = 0; i < kCount; i++) {
+      printf(" %f %d, ", (d_topK_keys+ (blockId*kCount))[i],
+	     (d_topK_vals+ (blockId*kCount))[i]);
+    }
+  }
+
+  __syncthreads();
 
 }
 
@@ -760,7 +825,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 /**************************************************************************/
 void cudaComputeNeighbors(params_t *params)
 {
-  int i, j, k, qID, dID, nqrows, ndrows;
+  int i, j, m, kCount, qID, dID, nqrows, ndrows;
   vault_t *vault;
   FILE *fpout;
 
@@ -799,15 +864,15 @@ void cudaComputeNeighbors(params_t *params)
 
 
   //count to be selected
-  k = params->nnbrs;
+  kCount = params->nnbrs;
 
   //allocate device memory for computed top-k similarity chunk 
-  cudaMalloc((void **) &d_topK_keys, sizeof(float)*k);
-  cudaMalloc((void **) &d_topK_vals, sizeof(int)*k);
+  cudaMalloc((void **) &d_topK_keys, sizeof(float)*kCount*params->nqrows);
+  cudaMalloc((void **) &d_topK_vals, sizeof(int)*kCount*params->nqrows);
 
   //allocate host memory for computed top-k similarity chunk 
-  h_topK_keys = (float *) malloc(sizeof(float)*k);
-  h_topK_vals = (int *) malloc(sizeof(int)*k);
+  h_topK_keys = (float *) malloc(sizeof(float)*kCount*params->nqrows);
+  h_topK_vals = (int *) malloc(sizeof(int)*kCount*params->nqrows);
 
 
   /* break the computations into chunks */
@@ -826,15 +891,18 @@ void cudaComputeNeighbors(params_t *params)
 
     //TODO: allocate space to store top similar docs, count in cuda mem
     //reset top k for each similarity
-    memset(h_topK_keys, 0, sizeof(float)*k);
-    memset(h_topK_vals, 0, sizeof(int)*k);
+    memset(h_topK_keys, 0, sizeof(float)*kCount*params->nqrows);
+    memset(h_topK_vals, 0, sizeof(int)*kCount*params->nqrows);
+
     //reset and copy to device mem
     cudaMemcpy((void *)d_topK_keys, (void*)h_topK_keys,
-	       params->ndrows*sizeof(float), cudaMemcpyHostToDevice);
+	       kCount*sizeof(float)*params->nqrows, cudaMemcpyHostToDevice);
     cudaMemcpy((void *)d_topK_vals, (void*)h_topK_vals,
-	       params->ndrows*sizeof(int), cudaMemcpyHostToDevice);
+	       kCount*sizeof(int)*params->nqrows, cudaMemcpyHostToDevice);
     
-    
+    //START cuda copying query mat
+    d_QMat = cudaCopyCSR(h_QMat, 0);
+
 
     /* find the neighbors of the chunk */ 
     for (dID=0; dID<vault->ndocs; dID+=params->ndrows) {
@@ -859,45 +927,49 @@ void cudaComputeNeighbors(params_t *params)
             8.0*h_DMat->rowptr[h_DMat->nrows]/(1024*1024));
 
 
-      //START cuda copying and kernel invocation here
-      d_QMat = cudaCopyCSR(h_QMat, 0);
+      //START cuda copying ref mat
       d_DMat = cudaCopyCSR(h_DMat, 1);
 
       /* spawn the work threads */
       gk_startwctimer(params->timer_3);
 
       //launch kernel
-      //shared mem float:sim[ndrows],compactKeys[ndrows],toKeys[ndrows],oldTopKeys[k],
-      //int:simPred[ndrows], compactVals[ndrows],oldTopVal[k],toVals[ndrows],
+      //shared mem float:sim[ndrows],compactKeys[ndrows],toKeys[ndrows],oldTopKeys[kCount],
+      //int:simPred[ndrows], compactVals[ndrows],oldTopVal[kCount],toVals[ndrows],
       //aggHisto[1<<NUM_BITS]
-      cudaFindNeighbors<<<NUM_BLOCKS, THREADS_PER_BLOCK,
-	(params->ndrows*3 + k)*sizeof(float) +
-	(params->ndrows*3 + k + (1<<NUM_BITS) )*sizeof(int) 
+      
+      cudaFindNeighbors<<<nqrows, THREADS_PER_BLOCK,
+	nqrows*((params->ndrows*3 + kCount)*sizeof(float) +
+	(params->ndrows*3 + kCount + (1<<NUM_BITS) )*sizeof(int)) 
 	>>>(d_QMat, d_DMat, d_topK_keys, d_topK_vals,
-	    k, NUM_BITS, params->minsim);
+	    kCount, NUM_BITS, params->minsim, dID);
       
-      //copy back to host mem
-      cudaMemcpy((void *)h_topK_keys, (void*)d_topK_keys,
-		 k*sizeof(float), cudaMemcpyDeviceToHost);
-      cudaMemcpy((void *)h_topK_vals, (void*)d_topK_vals,
-		 k*sizeof(int), cudaMemcpyDeviceToHost);
-      
-      //cuda copy knn for the query
-      //write the results to file
-      if (fpout) {
-	//TODO: zeroe the array in case prunnig to strict dont print garbage
-	for (i = 0; i < k; i++) {
-	  fprintf(fpout, "%8d %8d %.3f\n", qID, h_topK_vals[i], h_topK_keys[i]);
-	}
-      }
-
 
       gk_stopwctimer(params->timer_3);
 
       gk_csr_Free(&vault->pmat);
     }
 
+    //copy back to host mem
+    cudaMemcpy((void *)h_topK_keys, (void*)d_topK_keys,
+	       kCount*sizeof(float)*params->nqrows, cudaMemcpyDeviceToHost);
+    cudaMemcpy((void *)h_topK_vals, (void*)d_topK_vals,
+	       kCount*sizeof(int)*params->nqrows, cudaMemcpyDeviceToHost);
     
+    //cuda copy knn for the query
+    //write the results to file
+    if (fpout) {
+      for (i = qID; i < qID+params->nqrows && i < params->endid; i++) {
+	//index with in top chunks
+	j = (i-qID)*kCount;
+	//TODO: zeroe the array in case prunnig to strict dont print garbage
+	for (m = 0; m < kCount; m++) {
+	  fprintf(fpout, "%8d %8d %.3f\n ",
+		  i, h_topK_vals[j+m], h_topK_keys[j+m]);
+	}
+      }
+    }
+
   }
 
   gk_stopwctimer(params->timer_1);
@@ -925,3 +997,5 @@ void cudaComputeNeighbors(params_t *params)
 
  
  
+
+//  LocalWords:  newTopVal
