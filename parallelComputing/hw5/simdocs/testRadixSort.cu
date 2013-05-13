@@ -4,6 +4,10 @@
 #define NUM_BITS 2
 #define DEBUG 1
 
+
+
+
+
 //scan array arr of size n=nThreads, power of 2
 __device__ void preSubScan(int *arr, int n, int prev) {
 
@@ -95,55 +99,6 @@ __device__ void scan(int *arr, int n) {
 
   __syncthreads();
 } 
-
-
-//assuming no. of threads is power of 2
-//for best performance simPred is also power of 2
-__device__ void compact(float *sim, int *simPred, int n, float minSim) {
-  
-  int i, temp, j, prev;
-
-  //threadId with in a block, DMat doc to start with
-  int thId = threadIdx.x; 
-
-  //number of threads in blocks
-  int nThreads = blockDim.x;
-
-  __shared__ int compactCount;
-
-  compactCount = 0;
-  
-  __syncthreads();  
-  for (i = thId; i < n; i+= nThreads) {
-    if (sim[i] >= minSim ) {
-      atomicAdd(&compactCount, 1);
-      simPred[i] = 1;
-    }
-  }
-  
-  if (thId == 0)
-    printf("\nbefore compaction compCount:%d: ", compactCount);
-  for (i = thId; i < n; i+= nThreads) {
-    if (sim[i] >= minSim ) {
-      printf("simPred[%d]=%d ", i, simPred[i]);
-    }
-  }  
-
-
-  //divide the simpred into blocks,
-  //scan each block in parallel, with next iteration using results from prev blocks
-  scan(simPred, n);
-
-  if (thId == 0)
-    printf("\nafter compaction");
-  for (i = thId; i < n; i+= nThreads) {
-    if (sim[i] >= minSim ) {
-      printf("simPred[%d]=%d ", i, simPred[i]);
-    }
-  }  
-
-  __syncthreads();
-}
 
 
 __device__ void d_dispFArr(float *arr, int n) {
@@ -286,11 +241,17 @@ __device__ void radixSort(float *fromKeys, float *toKeys,
 
   //for each numbits chunk do following
   for (i = 0; i < sizeof(float)*8; i+=numBits) {
+
+    if (threadId == 0 && DEBUG) {
+      printf("\n fromKeys b4 zeroed histo :  ");
+      d_dispFArr(fromKeys, n);
+    }
+
     //reset histogram
     zeroedInt(aggHisto, bucketSize);
 
     if (threadId == 0 && DEBUG) {
-      printf("\n fromKeysay b4 histo :  ");
+      printf("\n fromKeys b4 histo :  ");
       d_dispFArr(fromKeys, n);
     }
 
@@ -324,8 +285,11 @@ __device__ void radixSort(float *fromKeys, float *toKeys,
     }
     __syncthreads();
 
+    
+
+
     if (threadId == 0 && DEBUG) {
-      printf("\n sorted:  ");
+      printf("\n sorted toKeys:  ");
       d_dispFArr(toKeys, n);
     }
 
@@ -333,6 +297,16 @@ __device__ void radixSort(float *fromKeys, float *toKeys,
     tempFSwap = toKeys;
     toKeys = fromKeys;
     fromKeys = tempFSwap;  
+
+    if (threadId == 0 && DEBUG) {
+      printf("\n after swap  toKeys:  ");
+      d_dispFArr(toKeys, n);
+      printf("\n after swap  fromKeys:  ");
+      d_dispFArr(fromKeys, n);
+      
+    }
+
+
 
     //toVals contains the sorted vals by keys,
     //for the next iteration point fromVals to this location
@@ -345,6 +319,9 @@ __device__ void radixSort(float *fromKeys, float *toKeys,
   //at this point fromKeys and fromVal will contain sorted arr in mem
  
 }
+
+
+
 
 
 __global__ void testRadixSort(float *d_keys, int *d_vals, int n) {
@@ -365,7 +342,7 @@ __global__ void testRadixSort(float *d_keys, int *d_vals, int n) {
   float *fromKeys = (float *)&d_keys[n];
   int *toVals = (int *)&fromKeys[n];
   float *toKeys = (float *)&toVals[n];
-  int *aggHisto = (int *)&toKeys[1<<numBits];
+  int *aggHisto = (int *)&toKeys[n];
   
   //copy keys and val to shared mem
   for (i = thId; i < n; i+=nThreads) {
@@ -386,22 +363,22 @@ __global__ void testRadixSort(float *d_keys, int *d_vals, int n) {
 
 int main(int argc, char *argv[]) {
   
-  /*  float h_fKeys[] = {1.0, 0.4, 0.316228, 0.365148, 0.670820, 0.447214, 0.258199, 0.4,
+  float h_fKeys[] = {1.0, 0.4, 0.316228, 0.365148, 0.670820, 0.447214, 0.258199, 0.4,
 		     0.258199, 0.316228, 0.258199, 0.258199, 0.258199, 0.258199,
 		     0.258199, 0.258199};
   int h_iVal[] =    {0, 53, 54, 81, 98, 195, 283, 583, 598, 615, 654, 690, 768, 904, 919,
 		     946};
-  
+  /*
   float h_fKeys[] = {1.0, 0.4, 0.316228, 0.365148, 0.670820};
   int h_iVal[] =    {0, 53, 54, 81, 98 };
 
-  */
-
+  
+  
   float h_fKeys[] = {1.0, 0.4, 0.3, 0.2, 0.6};
   int h_iVal[] =    {0, 53, 54, 81, 98 };
-
+  */
   
-  int n = 5;
+  int n = 16;
   int i;
   int numBits = NUM_BITS;
   float *d_keys;
