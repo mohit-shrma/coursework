@@ -829,6 +829,8 @@ void cudaComputeNeighbors(params_t *params)
   vault_t *vault;
   FILE *fpout;
 
+  int memSize;
+
   cuda_csr_t d_QMat; //query chunk
   cuda_csr_t d_DMat; //reference/ compared against query chunk
 
@@ -937,9 +939,14 @@ void cudaComputeNeighbors(params_t *params)
       //shared mem float:sim[ndrows],compactKeys[ndrows],toKeys[ndrows],oldTopKeys[kCount],
       //int:simPred[ndrows], compactVals[ndrows],oldTopVal[kCount],toVals[ndrows],
       //aggHisto[1<<NUM_BITS]
+
+
+      memSize = ((params->ndrows*3 + kCount)*sizeof(float) +
+			(params->ndrows*3 + kCount + (1<<NUM_BITS) )*sizeof(int));
+      printf("\n block shared requested memSize = %d", memSize);
       
       cudaFindNeighbors<<<nqrows, THREADS_PER_BLOCK,
-	nqrows*((params->ndrows*3 + kCount)*sizeof(float) +
+	((params->ndrows*3 + kCount)*sizeof(float) +
 	(params->ndrows*3 + kCount + (1<<NUM_BITS) )*sizeof(int)) 
 	>>>(d_QMat, d_DMat, d_topK_keys, d_topK_vals,
 	    kCount, NUM_BITS, params->minsim, dID);
