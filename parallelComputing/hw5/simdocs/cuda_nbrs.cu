@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#define THREADS_PER_BLOCK 512
+#define THREADS_PER_BLOCK 4
 #define NUM_BLOCKS 1
 #define NUM_BITS 2
 #define DEBUG 0
@@ -282,17 +282,40 @@ __device__ void compact(float *sim, int *simPred, int n, float minSim) {
   //number of threads in blocks
   int nThreads = blockDim.x;
 
+  __shared__ int compactCount;
+
+  compactCount = 0;
+  
+  __syncthreads();  
   for (i = thId; i < n; i+= nThreads) {
     if (sim[i] >= minSim ) {
+      atomicAdd(&compactCount, 1);
       simPred[i] = 1;
     }
   }
+  
+  if (thId == 0)
+    printf("\nbefore compaction compCount:%d: ", compactCount);
+  for (i = thId; i < n; i+= nThreads) {
+    if (sim[i] >= minSim ) {
+      printf("simPred[%d]=%d ", i, simPred[i]);
+    }
+  }  
 
 
   //divide the simpred into blocks,
   //scan each block in parallel, with next iteration using results from prev blocks
   scan(simPred, n);
 
+  if (thId == 0)
+    printf("\nafter compaction");
+  for (i = thId; i < n; i+= nThreads) {
+    if (sim[i] >= minSim ) {
+      printf("simPred[%d]=%d ", i, simPred[i]);
+    }
+  }  
+
+  __syncthreads();
 }
 
 
@@ -575,8 +598,13 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   float *qVal, *colval;
   int countKeyVal;
 
+  __shared__ int shNNZCount;
+
   extern __shared__ int s[];
-  
+
+  shNNZCount = 0;
+  __syncthreads();
+
   //shared memory for predicates
   int *simPred = s;
 
@@ -640,19 +668,40 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
     }
   }
 
+  
+  if (thId == 0) {
+    printf("simPred[0] :%d, simPred[1] :%d, simPred[2] :%d",
+	   simPred[0], simPred[1], simPred[2]);
+  }
+
 
   //compact the learned sim arrays and put it in key-val struct
   //find the non-zero indices here by  scan
   compact(sim, simPred, *(d_DMat.nrows), minSim);
   
+  if (thId == 0) {
+    printf("\nsimPred[0] :%d, simPred[1] :%d, simPred[2] :%d",
+	   simPred[0], simPred[1], simPred[2]);
+  }
+
+  shNNZCount = 0;
+
   //scatter non-zero into simPred indices
   for (i = thId, j = 0; i < *(d_DMat.nrows); i+=nThreads) {
-    if (sim[i] != 0.0f) {
+    if (sim[i] >= minSim) {
+      atomicAdd(&shNNZCount, 1);
       //write key-val at location simPred[i]
       compactKeys[simPred[i]] = sim[i];
       compactVals[simPred[i]] = i;
+      printf("\ni=%d compactKeys[%d] = %f", i, simPred[i] , sim[i]);
     }
   }
+
+  __syncthreads();
+ 
+  
+
+ 
 
   //total non-zero key val -> simPred[nrows]+1
   if (sim[(*(d_DMat.nrows))-1] != 0.0f) {
@@ -661,12 +710,33 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
     countKeyVal = simPred[(*(d_DMat.nrows))-1];
   }
 
+  if (thId == 0) {
+    printf("\natomic count: %d", shNNZCount);
+    printf("\ncountKeyVal: %d", countKeyVal);
+  }
+
+
+  //before sorting
+  if (thId == 0) {
+    printf("\n before sorting: \n");
+    for (i = 0; i < countKeyVal; i++) {
+      printf(" %f %d, ", compactKeys[i], compactVals[i]);
+    }
+  }
 
   //sort compact keys and corresponding vals
   radixSort(compactKeys, toKeys,
 	    compactVals, toVals,
 	    aggHisto,
 	    countKeyVal, numBits);
+
+  //after sorting
+  if (thId == 0) {
+    printf("\n after sorting: \n");
+    for (i = 0; i < countKeyVal; i++) {
+      printf(" %f %d, ", compactKeys[i], compactVals[i]);
+    }
+  }
 
   //linear merge to get topk keys and vals & write it out to device
   //TODO: think of a way to do this in parallel
@@ -703,7 +773,7 @@ void cudaComputeNeighbors(params_t *params)
   gk_csr_t *h_QMat;
   gk_csr_t *h_DMat;
 
-  printf("Reading data for %s...\n", params->infstem);
+  printf("CUDA: Reading data for %s...\n", params->infstem);
 
   vault = ReadData(params);
 
@@ -801,25 +871,27 @@ void cudaComputeNeighbors(params_t *params)
 	>>>(d_QMat, d_DMat, d_topK_keys, d_topK_vals,
 	    k, NUM_BITS, params->minsim);
       
+      //copy back to host mem
+      cudaMemcpy((void *)h_topK_keys, (void*)d_topK_keys,
+		 k*sizeof(float), cudaMemcpyDeviceToHost);
+      cudaMemcpy((void *)h_topK_vals, (void*)d_topK_vals,
+		 k*sizeof(int), cudaMemcpyDeviceToHost);
+      
+      //cuda copy knn for the query
+      //write the results to file
+      if (fpout) {
+	//TODO: zeroe the array in case prunnig to strict dont print garbage
+	for (i = 0; i < k; i++) {
+	  fprintf(fpout, "%8d %8d %.3f\n", qID, h_topK_vals[i], h_topK_keys[i]);
+	}
+      }
+
+
       gk_stopwctimer(params->timer_3);
 
       gk_csr_Free(&vault->pmat);
     }
 
-    //copy back to host mem
-    cudaMemcpy((void *)h_topK_keys, (void*)d_topK_keys,
-	       params->ndrows*sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy((void *)h_topK_vals, (void*)d_topK_vals,
-	       params->ndrows*sizeof(int), cudaMemcpyDeviceToHost);
-    
-    //cuda copy knn for the query
-    //write the results to file
-    if (fpout) {
-      //TODO: zeroe the array in case prunnig to strict dont print garbage
-      for (i = 0; i < k; i++) {
-	fprintf(fpout, "%8d %8d %.3f\n", qID, h_topK_vals[i], h_topK_keys[i]);
-      }
-    }
     
   }
 
