@@ -597,6 +597,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   int *qInd, *colptr, *colind;
   float *qVal, *colval;
   int countKeyVal;
+  int numDMatRows, numBuckets;
 
   __shared__ int shNNZCount;
 
@@ -605,26 +606,30 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   shNNZCount = 0;
   __syncthreads();
 
+  numDMatRows  = *(d_DMat.nrows);
+  numBuckets = 1 << numBits;
+
   //shared memory for predicates
   int *simPred = s;
 
   //shared memory to store similarities
-  float *sim = (float*) &s[*(d_DMat.nrows)];
+  float *sim = (float*) &s[numDMatRows];
   
   //shared memory to store compacted keys & values
-  float *compactKeys = (float *) &sim[*(d_DMat.nrows)];
-  int *compactVals = (int *) &compactKeys[*(d_DMat.nrows)]; 
+  float *compactKeys = (float *) &sim[numDMatRows];
+  int *compactVals = (int *) &compactKeys[numDMatRows]; 
   
+  //TODO
   //shared memory to store keys and values for radix sort op
   //can use previous offset as it won't be used after compaction
-  float *toKeys = sim; 
-  int *toVals = (int*) &compactVals[*(d_DMat.nrows)];
+  float *toKeys = (float *) &compactVals[numDMatRows]; 
+  int *toVals = (int*) &toKeys[numDMatRows];
 
   //shared memory to store histogram
-  int *aggHisto = (int*) &toVals[1<<numBits];
+  int *aggHisto = (int*) &toVals[numDMatRows];
 
   //shared memory storing old top keys & val
-  float *oldTopKeys = (float *) &aggHisto[k]; //copy from device mem
+  float *oldTopKeys = (float *) &aggHisto[numBuckets]; //copy from device mem
   int *oldTopVal = (int *) &oldTopKeys[k]; //copy from device mem
 
 
@@ -637,11 +642,11 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 
   /*if (thId == 0) {
     printf("\nQ num rows: %d", *(d_QMat.nrows));
-    printf("\nD num rows: %d", *(d_DMat.nrows));
+    printf("\nD num rows: %d", numDMatRows);
     }*/
 
   //set to zero similarity and simPreds
-  for (i = thId; i < *(d_DMat.nrows); i+=nThreads) {
+  for (i = thId; i < numDMatRows; i+=nThreads) {
     sim[i] = 0.0;
     simPred[i] = 0;
   }
@@ -677,7 +682,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
 
   //compact the learned sim arrays and put it in key-val struct
   //find the non-zero indices here by  scan
-  compact(sim, simPred, *(d_DMat.nrows), minSim);
+  compact(sim, simPred, numDMatRows, minSim);
   
   if (thId == 0) {
     printf("\nsimPred[0] :%d, simPred[1] :%d, simPred[2] :%d",
@@ -687,7 +692,7 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
   shNNZCount = 0;
 
   //scatter non-zero into simPred indices
-  for (i = thId, j = 0; i < *(d_DMat.nrows); i+=nThreads) {
+  for (i = thId, j = 0; i < numDMatRows; i+=nThreads) {
     if (sim[i] >= minSim) {
       atomicAdd(&shNNZCount, 1);
       //write key-val at location simPred[i]
@@ -704,10 +709,10 @@ __global__ void cudaFindNeighbors(cuda_csr_t d_QMat,
  
 
   //total non-zero key val -> simPred[nrows]+1
-  if (sim[(*(d_DMat.nrows))-1] != 0.0f) {
-    countKeyVal = simPred[(*(d_DMat.nrows))-1] + 1;
+  if (sim[(numDMatRows)-1] != 0.0f) {
+    countKeyVal = simPred[(numDMatRows)-1] + 1;
   } else  {
-    countKeyVal = simPred[(*(d_DMat.nrows))-1];
+    countKeyVal = simPred[(numDMatRows)-1];
   }
 
   if (thId == 0) {
@@ -862,11 +867,11 @@ void cudaComputeNeighbors(params_t *params)
       gk_startwctimer(params->timer_3);
 
       //launch kernel
-      //shared mem float:sim[ndrows],compactKeys[ndrows],oldTopKeys[k],
+      //shared mem float:sim[ndrows],compactKeys[ndrows],toKeys[ndrows],oldTopKeys[k],
       //int:simPred[ndrows], compactVals[ndrows],oldTopVal[k],toVals[ndrows],
       //aggHisto[1<<NUM_BITS]
       cudaFindNeighbors<<<NUM_BLOCKS, THREADS_PER_BLOCK,
-	(params->ndrows*2 + k)*sizeof(float) +
+	(params->ndrows*3 + k)*sizeof(float) +
 	(params->ndrows*3 + k + (1<<NUM_BITS) )*sizeof(int) 
 	>>>(d_QMat, d_DMat, d_topK_keys, d_topK_vals,
 	    k, NUM_BITS, params->minsim);
