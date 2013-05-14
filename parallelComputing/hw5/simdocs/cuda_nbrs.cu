@@ -1,7 +1,6 @@
 #include <stdio.h>
 
-#define THREADS_PER_BLOCK 64
-#define NUM_BLOCKS 1
+#define THREADS_PER_BLOCK 32
 #define NUM_BITS 2
 #define DEBUG 0
 
@@ -323,7 +322,7 @@ __device__ void scan(int *arr, int *scanArr, int n) {
 } 
 
 
-//assuming no. of threads is power of 2
+//assuming no. of threads is power of 2, but not performing for compaction bug in parallel scan
 //for best performance simPred is also power of 2
 __device__ void compact(float *sim, int *simPred, int *serialSimPred,
 			int n, float minSim) {

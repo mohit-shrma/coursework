@@ -1,3 +1,4 @@
+
 #CC = gcc-4.7.2
 CC = nvcc 
 OPTFLAGS = -O3 -fno-strict-aliasing -D_GNU_SOURCE
@@ -20,7 +21,7 @@ CFLAGS = -g -G -arch=sm_21 $(OMPOPTIONS)
 LIBS = $(STDLIBS)
 
 SOURCE = getopt.c all_common.c all_cmdline.c util.c omp_nbrs.c omp_main.c cuda_nbrs.cu 
-EXE = cudasd
+EXE = cssd
 
 default:
 	$(CC) $(CFLAGS) $(LIBS) $(SOURCE) -o $(EXE)
