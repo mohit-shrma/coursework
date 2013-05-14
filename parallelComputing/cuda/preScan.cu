@@ -1,5 +1,16 @@
 #include <stdio.h>
 
+
+//implement a naive serial scan
+__device__ void serialScan(int *arr, int *scanArr, int n) {
+  int  i;
+  scanArr[0] = 0;
+  for (i = 1; i < n; i++) {
+    scanArr[i] = scanArr[i-1] + arr[i-1];
+  }
+}
+
+
 //scan array arr of size n=nThreads, power of 2
 __device__ void preSubScan(int *arr, int n, int prev) {
 
@@ -50,7 +61,6 @@ __device__ void preSubScan(int *arr, int n, int prev) {
 }
 
 
-
 __device__ void dispArr(int *arr, int n) {
   
   int i;
@@ -66,7 +76,6 @@ __device__ void dispArr(int *arr, int n) {
     printf("\n");
   }
 }
-
 
 
 //works efficiently for power of 2
@@ -112,11 +121,9 @@ __device__ void scan(int *arr, int n) {
 
 
 
-
-
 //assuming no. of threads is power of 2
 //for best performance simPred is also power of 2
-__device__ void compact(float *sim, int *simPred, int n) {
+__device__ void compact(float *sim, int *simPred, int*serialSimPred, int n) {
   
   int i, temp, j, prev;
 
@@ -135,7 +142,18 @@ __device__ void compact(float *sim, int *simPred, int n) {
 
   //divide the simpred into nThreads blocks,
   //scan each block in parallel, with next iteration using results from prev blocks
-  scan(simPred, n);
+  //scan(simPred, n);
+
+  if (thId == 0) {
+    serialScan(simPred, serialSimPred, n);
+  }
+
+  __syncthreads();
+
+  for (i = thId; i < n; i+=nThreads) {
+    simPred[i] = serialSimPred[i];
+  }
+
 
 }
 
@@ -152,12 +170,14 @@ __global__ void compaction(float *d_in, float *d_keys, int *d_val, int *d_numKey
 
   extern __shared__ int s[];
   int *simPred = s;
+  int *serialSimPred = &s[n];
+
 
   for (i = thId; i < n; i+=nThreads) {
     simPred[i] = 0;
   }
 
-  compact(d_in, simPred, n);
+  compact(d_in, simPred, serialSimPred, n);
 
   for (i = thId; i < n; i+= nThreads) {
     if (d_in[i] != 0.0f) {
@@ -171,8 +191,6 @@ __global__ void compaction(float *d_in, float *d_keys, int *d_val, int *d_numKey
   }
 
 }
-
-
 
 
 int main(int argc, char *argv[]) {
@@ -211,7 +229,7 @@ int main(int argc, char *argv[]) {
   cudaMalloc((void **)&d_numKeys, sizeof(int)*1);
 
   //compact<<<1,4>>>(d_fArr, d_keys, h_n);
-  compaction<<<1,4, sizeof(int)*h_n>>>(d_fArr, d_keys, d_val, d_numKeys, h_n);
+  compaction<<<1,4, sizeof(int)*2*h_n>>>(d_fArr, d_keys, d_val, d_numKeys, h_n);
 
   cudaMemcpy((void *)h_numKeys, (void*)d_numKeys, sizeof(int),
 	     cudaMemcpyDeviceToHost);

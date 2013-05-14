@@ -331,7 +331,7 @@ void dispFArr(float *arr, int n) {
 
 int main(int argc, char *argv[]) {
 
-  float h_fArr[] = {0.1, 0, 0.5, 0.8, 0, 0.7, 0.8, 1.3, 0.0, 2.5, 9.10, 0, 2};
+  float h_fArr[] = {0.1, 1.000, 0.5, 0.8, 0, 0.7, 0.8, 1.3, 0.098923, 2.5, 9.10, 0, 2};
   int h_n = 13;
 
   //float h_fArr[] = {0.1, 0.6, 0.4, 0.3, 0.8, 2.0};
